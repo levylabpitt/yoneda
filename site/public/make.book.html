@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yoneda &middot; aim it at your lab</title>
+<style>
+  :root { --ink:#1a1a19; --paper:#f6f4ef; --soft:#6b6862; --line:#e2ddd3; --accent:#b1400e; }
+  @media (prefers-color-scheme: dark){ :root{ --ink:#eceae4; --paper:#14140f; --soft:#9c988e; --line:#2b2a24; --accent:#e0742f; } }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font:400 17px/1.6 ui-serif,Georgia,serif;display:flex;justify-content:center;padding:7vh 22px 12vh}
+  main{max-width:640px;width:100%}
+  .mark{width:64px;height:64px;display:block;margin:0 0 24px}
+  .mark path{fill:var(--ink)}
+  h1{font:600 15px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--soft);margin:0 0 20px}
+  .lede{font-size:22px;line-height:1.5;margin:0 0 26px}
+  p{margin:0 0 18px} label{display:block;font:600 13px ui-sans-serif,system-ui,sans-serif;color:var(--soft);text-transform:uppercase;letter-spacing:.08em;margin:22px 0 8px}
+  textarea{width:100%;min-height:120px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:400 14px ui-monospace,Menlo,monospace;resize:vertical}
+  button{margin-top:18px;padding:11px 20px;border:0;border-radius:8px;background:var(--ink);color:var(--paper);font:600 15px ui-sans-serif,system-ui,sans-serif;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .out{margin-top:30px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:14px}
+  .card h3{font:600 12px ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--soft);margin:0 0 10px}
+  .chip{display:inline-block;font:400 13px ui-sans-serif,system-ui,sans-serif;padding:3px 9px;border:1px solid var(--line);border-radius:20px;margin:0 6px 6px 0}
+  .chip b{font-weight:600}
+  .gap{color:var(--soft);font:400 14px ui-sans-serif,system-ui,sans-serif;margin-top:6px}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+  code{font:400 13px ui-monospace,Menlo,monospace;background:color-mix(in srgb,var(--ink) 7%,transparent);padding:1px 5px;border-radius:4px}
+</style></head><body><main>
+  <svg class="mark" viewBox="-8 -8 116 116" role="img" aria-label="Yoneda"><title>Yoneda</title>
+      <path d="M 45.14 29.40 L 45.38 29.42 L 45.63 29.44 L 45.87 29.46 L 46.11 29.48 L 46.36 29.51 L 46.60 29.53 L 46.85 29.55 L 47.09 29.58 L 47.34 29.60 L 47.58 29.62 L 47.83 29.65 L 48.07 29.67 L 48.32 29.69 L 48.56 29.72 L 48.81 29.74 L 49.05 29.76 L 49.29 29.79 L 49.54 29.81 L 49.78 29.84 L 50.03 29.86 L 50.27 29.88 L 50.52 29.91 L 50.76 29.93 L 51.01 29.96 L 51.25 29.98 L 51.49 30.01 L 51.74 30.03 L 51.98 30.06 L 52.23 30.09 L 52.47 30.11 L 52.71 30.11 L 52.95 30.10 L 53.20 30.09 L 53.44 30.07 L 53.68 30.06 L 53.92 30.05 L 54.16 30.04 L 54.40 30.02 L 54.64 30.01 L 54.88 30.00 L 55.13 29.99 L 55.37 29.97 L 55.61 29.96 L 55.85 29.95 L 56.09 29.94 L 56.33 29.93 L 56.57 29.92 L 56.82 29.90 L 57.06 29.89 L 57.30 29.88 L 57.54 29.87 L 57.78 29.86 L 58.02 29.85 L 58.27 29.84 L 58.51 29.83 L 58.75 29.82 L 58.99 29.80 L 59.23 29.79 L 59.47 29.78 L 59.71 29.77 L 59.96 29.76 L 60.20 29.75 L 60.44 29.74 L 60.68 29.73 L 60.92 29.72 L 61.16 29.71 L 61.41 29.70 L 61.65 29.69 L 61.89 29.68 L 62.13 29.67 L 62.37 29.67 L 62.61 29.66 L 62.86 29.65 L 63.10 29.64 L 63.34 29.63 L 63.58 29.62 L 63.82 29.61 L 64.06 29.60 L 64.31 29.59 L 64.55 29.59 L 64.79 29.58 L 65.03 29.57 L 65.27 29.56 L 65.51 29.55 L 65.76 29.54 L 66.00 29.52 L 66.24 29.50 L 66.48 29.47 L 66.72 29.45 L 66.96 29.43 L 67.20 29.41 L 67.44 29.39 L 67.69 29.37 L 67.93 29.35 L 68.17 29.33 L 68.41 29.31 L 68.65 29.29 L 68.89 29.27 L 69.13 29.25 L 69.38 29.23 L 69.62 29.21 L 69.86 29.19 L 70.10 29.17 L 70.34 29.15 L 70.58 29.13 L 70.82 29.11 L 71.07 29.09 L 71.31 29.07 L 71.55 29.06 L 71.79 29.04 L 72.03 29.02 L 72.27 29.00 L 72.51 28.98 L 72.76 28.96 L 73.00 28.94 L 73.24 28.92 L 73.48 28.90 L 73.72 28.89 L 73.96 28.87 L 74.21 28.85 L 74.45 28.83 L 74.69 28.81 L 74.93 28.79 L 75.17 28.78 L 75.41 28.76 L 75.66 28.74 L 75.90 28.72 L 76.14 28.70 L 76.38 28.69 L 76.62 28.67 L 76.87 28.65 L 77.11 28.63 L 77.35 28.62 L 77.59 28.60 L 77.83 28.58 L 78.07 28.56 L 78.32 28.55 L 78.56 28.53 L 78.80 28.50 L 79.04 28.46 L 79.28 28.41 L 79.52 28.37 L 79.76 28.32 L 80.01 28.28 L 80.25 28.24 L 80.49 28.19 L 80.73 28.15 L 80.97 28.10 L 81.21 28.06 L 81.45 28.02 L 81.69 27.97 L 81.93 27.93 L 82.18 27.89 L 82.42 27.84 L 82.66 27.80 L 82.90 27.76 L 83.14 27.71 L 83.38 27.67 L 83.62 27.63 L 83.87 27.58 L 84.11 27.54 L 84.35 27.50 L 84.59 27.46 L 84.83 27.41 L 85.07 27.37 L 85.31 27.33 L 85.56 27.29 L 85.80 27.24 L 86.04 27.20 L 85.96 24.20 L 85.72 24.17 L 85.47 24.14 L 85.23 24.11 L 84.98 24.08 L 84.74 24.05 L 84.50 24.02 L 84.25 23.99 L 84.01 23.96 L 83.76 23.94 L 83.52 23.91 L 83.27 23.88 L 83.03 23.85 L 82.79 23.82 L 82.54 23.79 L 82.30 23.76 L 82.05 23.73 L 81.81 23.70 L 81.56 23.67 L 81.32 23.65 L 81.07 23.62 L 80.83 23.59 L 80.59 23.56 L 80.34 23.53 L 80.10 23.50 L 79.85 23.47 L 79.61 23.45 L 79.36 23.42 L 79.12 23.39 L 78.87 23.36 L 78.63 23.33 L 78.39 23.32 L 78.14 23.32 L 77.90 23.32 L 77.65 23.32 L 77.41 23.32 L 77.17 23.31 L 76.92 23.31 L 76.68 23.31 L 76.44 23.31 L 76.19 23.31 L 75.95 23.31 L 75.70 23.31 L 75.46 23.31 L 75.22 23.31 L 74.97 23.31 L 74.73 23.31 L 74.48 23.31 L 74.24 23.31 L 74.00 23.31 L 73.75 23.31 L 73.51 23.31 L 73.26 23.31 L 73.02 23.31 L 72.78 23.31 L 72.53 23.31 L 72.29 23.31 L 72.04 23.31 L 71.80 23.31 L 71.56 23.31 L 71.31 23.31 L 71.07 23.31 L 70.82 23.31 L 70.58 23.32 L 70.34 23.32 L 70.09 23.32 L 69.85 23.32 L 69.60 23.32 L 69.36 23.32 L 69.12 23.32 L 68.87 23.32 L 68.63 23.33 L 68.38 23.33 L 68.14 23.33 L 67.90 23.33 L 67.65 23.33 L 67.41 23.34 L 67.16 23.34 L 66.92 23.34 L 66.68 23.34 L 66.43 23.34 L 66.19 23.35 L 65.94 23.35 L 65.70 23.35 L 65.45 23.35 L 65.21 23.36 L 64.97 23.38 L 64.72 23.39 L 64.48 23.41 L 64.24 23.43 L 63.99 23.44 L 63.75 23.46 L 63.51 23.47 L 63.26 23.49 L 63.02 23.51 L 62.78 23.52 L 62.53 23.54 L 62.29 23.56 L 62.04 23.57 L 61.80 23.59 L 61.56 23.61 L 61.31 23.62 L 61.07 23.64 L 60.83 23.66 L 60.58 23.68 L 60.34 23.69 L 60.10 23.71 L 59.85 23.73 L 59.61 23.75 L 59.37 23.76 L 59.12 23.78 L 58.88 23.80 L 58.64 23.82 L 58.39 23.84 L 58.15 23.85 L 57.91 23.87 L 57.66 23.89 L 57.42 23.91 L 57.17 23.93 L 56.93 23.95 L 56.69 23.97 L 56.44 23.99 L 56.20 24.00 L 55.96 24.02 L 55.71 24.04 L 55.47 24.06 L 55.23 24.08 L 54.98 24.10 L 54.74 24.12 L 54.50 24.14 L 54.25 24.16 L 54.01 24.18 L 53.77 24.20 L 53.52 24.22 L 53.28 24.24 L 53.04 24.26 L 52.79 24.28 L 52.55 24.30 L 52.31 24.32 L 52.06 24.36 L 51.82 24.42 L 51.58 24.48 L 51.34 24.54 L 51.10 24.60 L 50.86 24.66 L 50.62 24.72 L 50.38 24.78 L 50.14 24.84 L 49.90 24.90 L 49.66 24.96 L 49.42 25.03 L 49.18 25.09 L 48.94 25.15 L 48.70 25.21 L 48.46 25.27 L 48.22 25.33 L 47.98 25.39 L 47.74 25.46 L 47.50 25.52 L 47.26 25.58 L 47.02 25.64 L 46.78 25.70 L 46.54 25.77 L 46.30 25.83 L 46.06 25.89 L 45.82 25.95 L 45.58 26.02 L 45.34 26.08 L 45.10 26.14 L 44.86 26.21 Z"/>
+      <path d="M 45.20 3.15 L 45.24 4.54 L 45.26 5.93 L 45.28 7.32 L 45.29 8.71 L 45.29 10.10 L 45.28 11.49 L 45.27 12.88 L 45.25 14.27 L 45.23 15.67 L 45.20 17.06 L 45.21 18.45 L 45.23 19.83 L 45.25 21.22 L 45.26 22.61 L 45.26 24.00 L 45.26 25.40 L 45.26 26.79 L 45.25 28.18 L 45.24 29.57 L 45.23 30.97 L 45.21 32.36 L 45.20 33.76 L 45.23 35.15 L 45.27 36.55 L 45.30 37.94 L 45.33 39.34 L 45.35 40.74 L 45.38 42.13 L 45.41 43.53 L 45.44 44.93 L 45.47 46.33 L 45.49 47.73 L 45.52 49.13 L 45.55 50.53 L 45.59 51.93 L 45.62 53.33 L 45.66 54.73 L 45.69 56.13 L 45.73 57.53 L 45.78 58.94 L 45.82 60.34 L 45.87 61.74 L 45.93 63.14 L 45.99 64.55 L 46.05 65.95 L 46.12 67.36 L 46.19 68.77 L 46.28 70.19 L 46.36 71.60 L 46.46 73.02 L 46.56 74.45 L 46.67 75.88 L 46.79 77.31 L 46.92 78.74 L 47.03 80.07 L 47.07 81.24 L 47.03 82.23 L 46.88 83.02 L 46.64 83.63 L 46.23 84.29 L 45.61 85.02 L 44.85 85.76 L 44.01 86.44 L 43.11 87.05 L 42.16 87.60 L 41.15 88.08 L 40.08 88.51 L 38.96 88.89 L 37.79 89.22 L 36.58 89.50 L 35.33 89.75 L 34.05 89.95 L 32.74 90.12 L 31.41 90.27 L 30.07 90.40 L 28.73 90.52 L 27.40 90.62 L 26.10 90.70 L 24.80 90.76 L 23.51 90.79 L 22.20 90.79 L 20.85 90.76 L 19.25 90.73 L 16.61 91.04 L 15.72 98.53 L 18.68 91.18 L 17.55 90.92 L 16.21 90.57 L 15.01 90.20 L 13.96 89.83 L 13.04 89.44 L 12.24 89.01 L 11.52 88.50 L 10.86 87.90 L 10.29 87.23 L 9.81 86.51 L 9.46 85.77 L 9.24 85.03 L 9.14 84.30 L 9.17 83.50 L 9.34 82.66 L 9.62 81.85 L 10.00 81.14 L 10.48 80.50 L 11.08 79.90 L 11.82 79.29 L 12.70 78.71 L 13.71 78.17 L 14.84 77.67 L 16.04 77.20 L 17.29 76.77 L 18.53 76.38 L 19.79 76.04 L 21.05 75.73 L 22.32 75.47 L 23.59 75.25 L 24.88 75.08 L 26.17 74.94 L 27.48 74.88 L 28.78 74.88 L 30.08 74.93 L 31.37 75.02 L 32.65 75.17 L 33.92 75.37 L 35.17 75.63 L 36.40 75.95 L 37.61 76.32 L 38.80 76.76 L 39.96 77.26 L 41.09 77.82 L 42.19 78.46 L 43.26 79.17 L 44.26 79.99 L 45.21 80.87 L 46.11 81.78 L 46.95 82.74 L 47.96 83.89 L 49.55 85.14 L 51.26 85.90 L 52.75 86.35 L 54.13 86.73 L 55.51 87.08 L 56.92 87.33 L 58.32 87.56 L 59.71 87.78 L 61.11 87.99 L 62.50 88.21 L 63.89 88.41 L 65.29 88.61 L 66.69 88.80 L 68.09 88.99 L 69.49 89.17 L 70.90 89.34 L 72.30 89.50 L 73.71 89.65 L 75.11 89.79 L 76.52 89.92 L 77.93 90.04 L 79.35 90.13 L 80.76 90.22 L 82.17 90.29 L 83.59 90.35 L 85.00 90.40 L 86.42 90.42 L 87.84 90.44 L 89.26 90.43 L 90.68 90.41 L 92.10 90.37 L 93.52 90.31 L 93.50 87.71 L 92.11 87.65 L 90.73 87.57 L 89.35 87.48 L 87.97 87.37 L 86.60 87.24 L 85.23 87.09 L 83.85 86.93 L 82.49 86.76 L 81.12 86.57 L 79.75 86.37 L 78.39 86.16 L 77.02 85.94 L 75.66 85.71 L 74.30 85.47 L 72.94 85.21 L 71.58 84.95 L 70.22 84.68 L 68.86 84.41 L 67.50 84.12 L 66.15 83.83 L 64.79 83.53 L 63.43 83.22 L 62.08 82.91 L 60.72 82.60 L 59.37 82.28 L 58.03 81.95 L 56.70 81.61 L 55.36 81.36 L 54.03 81.10 L 52.84 80.83 L 52.05 80.57 L 51.53 80.23 L 50.66 79.36 L 49.56 78.29 L 48.42 77.28 L 47.22 76.32 L 45.97 75.43 L 44.71 74.55 L 43.41 73.73 L 42.07 72.98 L 40.69 72.32 L 39.29 71.73 L 37.86 71.22 L 36.41 70.78 L 34.94 70.42 L 33.46 70.12 L 31.98 69.88 L 30.49 69.70 L 28.99 69.59 L 27.50 69.52 L 26.01 69.50 L 24.53 69.50 L 23.04 69.54 L 21.56 69.63 L 20.07 69.78 L 18.59 69.97 L 17.10 70.22 L 15.62 70.51 L 14.13 70.86 L 12.62 71.27 L 11.08 71.77 L 9.53 72.39 L 7.99 73.17 L 6.49 74.14 L 5.09 75.36 L 3.84 76.84 L 2.81 78.53 L 2.04 80.36 L 1.55 82.29 L 1.36 84.32 L 1.51 86.37 L 1.98 88.32 L 2.71 90.14 L 3.68 91.82 L 4.84 93.33 L 6.17 94.68 L 7.65 95.85 L 9.21 96.81 L 10.80 97.58 L 12.42 98.18 L 14.04 98.64 L 15.64 99.03 L 17.04 99.33 L 20.87 92.05 L 19.28 98.85 L 19.36 98.96 L 20.69 98.96 L 22.18 98.96 L 23.68 98.94 L 25.16 98.88 L 26.61 98.78 L 28.05 98.67 L 29.47 98.53 L 30.90 98.38 L 32.35 98.20 L 33.83 97.99 L 35.32 97.74 L 36.83 97.44 L 38.35 97.10 L 39.86 96.69 L 41.37 96.20 L 42.87 95.64 L 44.36 94.98 L 45.81 94.22 L 47.22 93.34 L 48.58 92.34 L 49.88 91.21 L 51.11 89.93 L 52.25 88.45 L 53.22 86.72 L 53.88 84.80 L 54.19 82.94 L 54.26 81.19 L 54.18 79.56 L 54.05 78.06 L 53.91 76.66 L 53.79 75.27 L 53.67 73.89 L 53.56 72.50 L 53.45 71.12 L 53.35 69.74 L 53.26 68.35 L 53.18 66.97 L 53.10 65.59 L 53.03 64.21 L 52.96 62.83 L 52.89 61.45 L 52.83 60.07 L 52.78 58.68 L 52.72 57.30 L 52.67 55.91 L 52.62 54.52 L 52.58 53.13 L 52.53 51.74 L 52.49 50.35 L 52.45 48.95 L 52.41 47.56 L 52.37 46.16 L 52.33 44.77 L 52.29 43.37 L 52.25 41.97 L 52.21 40.57 L 52.17 39.17 L 52.13 37.77 L 52.09 36.37 L 52.04 34.96 L 52.00 33.56 L 51.90 32.16 L 51.79 30.75 L 51.69 29.35 L 51.58 27.95 L 51.47 26.55 L 51.35 25.14 L 51.23 23.74 L 51.11 22.34 L 50.98 20.93 L 50.85 19.53 L 50.71 18.13 L 50.56 16.73 L 50.35 15.33 L 50.13 13.93 L 49.92 12.54 L 49.69 11.14 L 49.46 9.75 L 49.22 8.36 L 48.97 6.97 L 48.72 5.58 L 48.45 4.20 L 48.18 2.82 Z"/>
+  </svg>
+  <h1>Aim it at your lab</h1>
+  <p class="lede">The book explains the substrate the same way for everyone. The examples should be yours.</p>
+  <p>Paste a handful of your group's DOIs. Yoneda reads them and shows you who and what the book will be built around: your people, your materials, your journals. Nothing is stored; this runs against public metadata and returns to you.</p>
+
+  <label for="dois">Your DOIs, one per line</label>
+  <textarea id="dois" placeholder="10.1021/acs.nanolett.5c05590
+10.1063/5.0332426
+10.1002/aelm.202500633"></textarea>
+  <button id="go">Read my group</button>
+
+  <label for="methods">Methods text (optional) &middot; sharpens instruments, cryostats &amp; file formats</label>
+  <textarea id="methods" placeholder="Paste a paragraph or two from a methods section: your cryostat, lock-in, DAQ software, sample naming, file formats. Leave blank and the book uses sensible defaults."></textarea>
+  <button id="book">Generate my book (PDF)</button>
+
+  <div class="out" id="out"></div>
+
+<script>
+const btn=document.getElementById("go"), out=document.getElementById("out");
+btn.onclick=async()=>{
+  const dois=document.getElementById("dois").value.split(/
++/).map(s=>s.trim()).filter(Boolean);
+  if(!dois.length){out.innerHTML='<p class="gap">Add at least one DOI.</p>';return;}
+  btn.disabled=true; btn.textContent="Reading Crossref...";
+  out.innerHTML='';
+  try{
+    const r=await fetch("/api/profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({dois})});
+    const p=await r.json();
+    if(p.error){out.innerHTML='<p class="gap">'+p.error+'</p>';return;}
+    const chips=(arr,fmt)=>arr.map(fmt).join("");
+    let h='<div class="card"><h3>'+p.n_papers+' papers, '+p.year_span[0]+'&ndash;'+p.year_span[1]+'</h3></div>';
+    if(p.people.length) h+='<div class="card"><h3>Your people</h3>'+chips(p.people,x=>'<span class="chip"><b>'+x.name+'</b> &middot; '+x.n+'</span>')+'</div>';
+    if(p.materials.length) h+='<div class="card"><h3>Your materials</h3>'+chips(p.materials,x=>'<span class="chip"><b>'+x.term+'</b> &middot; '+x.n+'</span>')+'</div>';
+    if(p.venues.length) h+='<div class="card"><h3>Where you publish</h3>'+chips(p.venues,x=>'<span class="chip">'+x.journal+' &middot; '+x.n+'</span>')+'</div>';
+    if(p.gaps&&p.gaps.length) h+='<div class="card"><h3>What DOIs cannot tell us</h3>'+p.gaps.map(g=>'<div class="gap">'+g+'</div>').join('')+'</div>';
+    h+='<p class="gap" style="margin-top:20px">This is the profile your book gets built from. The full custom PDF (your instruments, your file formats, worked examples in your materials) is generated from this plus one methods PDF. That step is being wired now.</p>';
+    out.innerHTML=h;
+  }catch(e){ out.innerHTML='<p class="gap">Something went wrong: '+e+'</p>'; }
+  finally{ btn.disabled=false; btn.textContent="Read my group"; }
+};
+
+const bookBtn=document.getElementById("book");
+bookBtn.onclick=async()=>{
+  const dois=document.getElementById("dois").value.split(/\s*\n\s*/).map(s=>s.trim()).filter(Boolean);
+  const methods_text=document.getElementById("methods").value;
+  if(!dois.length){out.innerHTML='<p class="gap">Add at least one DOI first.</p>';return;}
+  bookBtn.disabled=true; btn.disabled=true;
+  bookBtn.textContent="Building your book... (this takes a minute)";
+  try{
+    const r=await fetch("/api/book",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({dois,methods_text})});
+    if(!r.ok){
+      let msg="Something went wrong ("+r.status+").";
+      try{ const e=await r.json(); if(e&&e.error) msg=e.error; }catch{}
+      out.innerHTML='<p class="gap">'+msg+'</p>';
+      return;
+    }
+    const blob=await r.blob();
+    const cd=r.headers.get("content-disposition")||"";
+    const m=cd.match(/filename="([^"]+)"/);
+    const name=(m&&m[1])||"yoneda-book.pdf";
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    out.innerHTML='<p class="gap">Your book (<b>'+name+'</b>) downloaded. Open it, and if the examples should be sharper, add methods text above and regenerate.</p>';
+  }catch(e){ out.innerHTML='<p class="gap">Something went wrong: '+e+'</p>'; }
+  finally{ bookBtn.disabled=false; btn.disabled=false; bookBtn.textContent="Generate my book (PDF)"; }
+};
+</script>
+</main></body></html>

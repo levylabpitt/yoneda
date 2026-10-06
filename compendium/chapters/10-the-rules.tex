@@ -1,0 +1,487 @@
+\chapter{The Nine Rules and How They Were Learned}\label{ch:the-rules}
+
+There are nine, and the database can tell you how exactly one of them was learned.
+
+Both halves of that sentence are new. When this chapter was first written the title said nine and the database held thirteen rows under twelve names, and the title was left wrong on purpose, because the way it came to be wrong was the subject: somebody had counted \texttt{INSERT} statements in a file instead of rows in a table. The count is right now. It did not become right by being corrected. On 2026-07-17 the live instance was wiped and reborn from \texttt{stem-cell/stem-cell.sql}, and the four extra rows went where everything else went. What the file boots is what the database holds, because the database is now nothing but what the file booted: ten objects, nine of them rules, zero relations.
+
+The second half of the sentence is the cost, and it is worth stating before the rows rather than after. Of the nine rows, one still carries the \texttt{trigger} field recording what went wrong to produce it. The other eight arrived as bare definitions, because the genome was written as a distillation and a distillation drops the story. So the title is half true in a specific way: the count is a fact about the database, and ``how they were learned'' is now, for eight of nine, a fact about this book.
+
+Ch.09 argued that rules live in the database rather than in the software, and that this is the design's most successfully executed idea. This chapter is the receipt. It prints every rule row in the live instance, verbatim, with its trigger where it has one and a short audit. The chapter does not argue. Where a rule needs an argument, the argument is somewhere else: divergence in Ch.15, the consensus exponent in Ch.16, source-as-instrument in Ch.17, boundary refs in Ch.03 and Ch.11, and the wipe itself in Ch.00 and Ch.18. Here they are quoted, dated, and checked.
+
+Everything below came out of one query, which you can run yourself:
+
+\begin{lstlisting}
+SELECT i, jsonb_pretty(j) FROM o WHERE j->>'type' = 'rule' ORDER BY i;
+\end{lstlisting}
+
+\begin{Correspondence}{The rule inventory}{Run the query above against a fresh instance and compare its nine rows to the nine quoted in this chapter.}
+Every JSON block below is the output of that query against the live instance on 2026-07-17, with whitespace as \texttt{jsonb\_pretty} produced it. Nothing is paraphrased. If a quotation here disagrees with the database, the database is right and this chapter is stale, which is exactly the failure mode \rulerow{staleness-decay-v1} is about and exactly the one this chapter has already committed once (see \S\ref{sec:staleness}).
+\end{Correspondence}
+
+\section{ORDER BY i is not chronological}
+
+The previous version of this chapter printed the rows in order of \texttt{o.i} and said that this order was chronological and therefore told the story without any help. That was true when \texttt{o.i} was a \texttt{BIGINT} counter. It is false now, and it was made false by the fix that made merge possible at all.
+
+\texttt{o.i} is a \texttt{uuidv7}: 48 bits of millisecond timestamp, then random bits. Sorting by it recovers creation order at millisecond resolution and no better. The nine rules are inserted by nine consecutive \texttt{INSERT} statements in one file, several of them land in the same millisecond, and within a millisecond the random bits decide. The genome writes \rulerow{consensus} before \rulerow{boundary-ref-v1}. The live instance sorts \rulerow{boundary-ref-v1} first. Not even the first row is stable: in two boots out of nineteen \rulerow{consensus} sorted ahead of \rulerow{universal-epoch-v1}, which the file writes before it.
+
+\begin{Correspondence}{o.i does not recover insertion order}{Boot the stem cell several times and list the rules by \texttt{o.i}; the order differs between boots.}
+The genome's own comment claims the opposite, in passing: \texttt{uuidv7} ``also means ids sort by creation, which is a free tiebreak''. At millisecond granularity that is true. At the granularity of a boot script it is not, and a boot script is where every rule row in this database comes from. Seven boots from one unchanged file gave six distinct orderings, and the seventh agreed with an earlier one by luck rather than by rule.
+\begin{Check}
+-- seven fresh databases, one file, six orderings
+createdb tst1 ; psql -d tst1 -f stem-cell.sql
+SELECT coalesce(j->>'name', j->>'kind') FROM o ORDER BY i;
+-- boot 1: universal-epoch, consensus, boundary-ref, snapshot, source-as-instrument, window-censoring, ...
+-- boot 2: universal-epoch, boundary-ref, consensus, source-as-instrument, snapshot, window-censoring, ...
+-- boot 3: consensus, universal-epoch, boundary-ref, snapshot, source-as-instrument, window-censoring, ...
+-- boot 4: universal-epoch, consensus, boundary-ref, snapshot, source-as-instrument, staleness-decay, ...
+-- boot 5: universal-epoch, consensus, snapshot, boundary-ref, window-censoring, source-as-instrument, ...
+-- boot 3 is the one to look at: the declared origin of time is not the first row
+
+-- why: the millisecond prefix collides and the random bits break the tie
+SELECT substring(i::text,1,13), j->>'name' FROM o ORDER BY i;
+-- 019f6e5e-e6ce  snapshot-on-observation-v1
+-- 019f6e5e-e6ce  boundary-ref-v1   <- same millisecond, inserted FIRST of the two, sorts second
+\end{Check}
+Nothing downstream reads ordering as truth, so this breaks no query, and the genome says as much in the sentence before the one that overclaims. What it breaks is this chapter's organizing device. The sections below are in the order the genome file writes them, which is an order a person chose, and that order is in the file and nowhere in the data.
+\end{Correspondence}
+
+\section{universal-epoch-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-17",
+    "name": "universal-epoch-v1",
+    "note": "The uncertainty on the age (+/- 0.023 Gyr, about 7.3e14
+             s) swamps every difference this database will ever
+             record, so only about 4 of the 18 digits are physically
+             meaningful and NONE of them are meaningful as an
+             absolute. This number is a choice of origin, in the same
+             sense that SI fixes c exactly rather than measuring it.
+             Differences of t_universe are exact and physical. The
+             absolute value is a convention shared by every instance
+             that agrees to this row.",
+    "type": "rule",
+    "level": 0,
+    "source": "Planck 2018 results VI: age = 13.797 +/- 0.023 Gyr.
+               Julian year = 31557600 s exactly. 13.797e9 * 31557600
+               = 4.3540e17, rounded to 4.354e17 because carrying more
+               digits would be false precision.",
+    "status": "declared convention, exact by fiat",
+    "revision": "if the age estimate changes, DO NOT edit this row:
+                 that would silently translate every timestamp in
+                 every instance downstream of it. Supersede it with
+                 universal-epoch-v2 carrying an explicit offset, and
+                 treat the change as a coordinate transformation.",
+    "definition": "t_universe(ts) = 435400000000000000 +
+                   unix_epoch_seconds(ts). The origin is the Big
+                   Bang. The constant is the declared number of
+                   seconds from that origin to 1970-01-01T00:00:00Z,
+                   and it is exact BY DEFINITION, not by
+                   measurement.",
+    "seconds_to_unix_epoch": "435400000000000000"
+}
+\end{lstlisting}
+
+New on 2026-07-17, and the only \texttt{"level": 0} row in the database. It is also the only rule here that is not about evidence. It is about where time starts.
+
+The design decision is Jeremy's and it fits in a sentence: every database should have a big bang time. Unix time counts from 1970, which is a convention about a human calendar, chosen by people who needed a number and picked a round one near at hand. The rule proposes the one origin that is not parochial. \texttt{t\_universe(ts)} returns seconds since the beginning of the universe, every instance that agrees to this row shares that frame, and two instances that never met can compare their birth moments in it.
+
+Now the physics, because the physics is the reason this is a row and not a \texttt{\#define}. The age of the universe is $13.797 \pm 0.023$~Gyr (Planck 2018 results VI). That uncertainty is about $7.3 \times 10^{14}$ seconds, which is twenty million years. The declared constant is $4.354 \times 10^{17}$ seconds. So roughly four of its eighteen digits are physically meaningful, and none of them are meaningful as an absolute: the error bar on the origin is longer than the entire history of the primates. A database recording microseconds against that origin would be carrying twelve digits of pure fiction, and it would be carrying them in a field that looks exactly like a measurement.
+
+The rule's response is not to apologize for the fiction. It is to stop measuring. The constant is \emph{declared}: exact by fiat, a definition rather than an observation. That move is not novel and the rule names its precedent. SI does it with $c$. The metre was once a measurement of a bar in Paris and $c$ was once a number you determined; now $c$ is exactly 299\,792\,458~m/s, not because anyone ever measured it that well, but because the definition was inverted. $c$ fixes the metre and the metre no longer constrains $c$. Same move here. The epoch is not an estimate of when the Big Bang was. It is a choice of where zero is.
+
+What that buys is narrow, and stating it exactly is the whole discipline of the row. Differences of \texttt{t\_universe} are exact and physical, because the constant cancels and what is left is clock time. Absolute values of \texttt{t\_universe} are a convention, shared by every instance that agrees to the row and meaningless to anything that does not. \texttt{age()} is a difference, so it is exact and carries none of the epoch's uncertainty. The rule buys a common frame. It does not buy knowledge of when the universe began, and nothing downstream may act as though it did.
+
+\begin{Correspondence}{Only differences of t\_universe are physical}{Compare the declared constant's digits against the Planck uncertainty, then check that \texttt{age()} is a plain difference.}
+\begin{Check}
+SELECT t_universe();   -- 435400001784262277.249393
+SELECT age();          -- 264.912785   (seconds since this instance's big bang)
+
+-- Planck 2018 VI: 13.797 +/- 0.023 Gyr, so sigma is about 7.3e14 s.
+-- 7.3e14 / 4.354e17 = 1.7e-3: the FOURTH digit of the constant is already
+-- inside the error bar. Digits 5 through 18 are convention, not measurement.
+-- age() subtracts two t_universe values, so 4.354e17 cancels exactly and what
+-- remains is clock time. It is as good as the clock and no worse.
+\end{Check}
+The \texttt{NUMERIC} return type is not fussiness. $4.354 \times 10^{17}$ needs 18 significant digits and a double carries about 15 to 16, so in a double the seconds would sit at the edge of the representation and the milliseconds would be gone. The quantity that is \emph{not} physical would have destroyed the one that is.
+\end{Correspondence}
+
+The corollary is in the row and it is the sharpest sentence in the rule layer: if cosmology revises the age, do not edit this row. The instinct is to treat a better measurement as a correction, and here it is not, because the row is not a measurement. Editing it would translate every timestamp in every instance downstream of it, silently, and two instances that had already synced would come to disagree about when things happened without either of them having changed a single stored value. The prescribed move is a \rulerow{universal-epoch-v2} carrying an explicit offset, treated as a coordinate change. The row says it in seven words: origins do not get better; they get changed.
+
+\paragraph{In your instance.} Your rig gets a big bang when you boot it and so does the lab copy, and neither had to be told the other exists. That is the entire use, and it is worth being precise about it, because the sentence ``seconds since the Big Bang'' invites you to expect more. When you merge the rig into the lab copy you have two birth events in one frame, and you can ask which came first, and the answer does not depend on either machine having been present at the other's boot. What it does not give you is a good clock. \texttt{t\_universe} reads \texttt{now()} and adds a constant, so a rig whose system clock is forty seconds fast produces \texttt{t\_universe} values that are forty seconds fast, and the universal frame propagates that error faithfully and with eighteen digits of apparent authority. The frame is a common zero, not a common clock. If you need two machines to agree more tightly than your NTP drift, that is a separate problem and this rule does not touch it.
+
+\section{consensus}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "law": "linear",
+    "name": "consensus",
+    "note": "replace by calibrated law; candidates: linear, quadratic
+             (Born), t-norms. The 2025 QM paper used c^2, the 2025
+             consensus view used c; the discrepancy is an empirical
+             parameter, not a bug.",
+    "type": "rule",
+    "level": 2,
+    "status": "seed-prior",
+    "definition": "truth = sum(v*c)/sum(c) per (type,o1,o2)"
+}
+\end{lstlisting}
+
+On the archived instance this was \texttt{o.i = 1}: the first object ever inserted, and the chapter could lean on that. It has no such distinction now. It is a \texttt{uuidv7} like everything else and it does not even sort first. What survives is the fact the old \texttt{o.i} was evidence for: it is still the only rule row with no \texttt{date} field, and the reason is still the true one. It predates the convention of dating rules. It was there before there were dates.
+
+Three things about it.
+
+First, \texttt{"status": "seed-prior"}. The rule announces that it is a guess. That is the whole point of the tower: a law that has not been fit says so, in a field, in the data, rather than in a comment nobody reads.
+
+Second, the note names a discrepancy and says where it came from: \emph{The 2025 QM paper used c\^{}2, the 2025 consensus view used c}. This chapter promised Ch.16 a precise referent, so here it is. The $c^2$ is real and it is verbatim in \texttt{Spacetime Database Topology/main.tex}:
+\[
+P(m) = \frac{\sum_{b:\,\mathrm{outcome}(b)=m} c_b^2}{\sum_{b} c_b^2}
+\]
+glossed there as ``Born's rule emerges from branch confidence normalization''. That document's real title is \emph{Quantum Mechanics Emerges from Classical Information Branching in Time}, and its folder name promises topology and delivers quantum mechanics. The $c^2$ is emphatically \textbf{not} in \texttt{QDA.tex}, which is the only 2025 document whose title begins with the word ``Quantum'', and which contains no confidence field, no $c$, no $c^2$, and in fact no mathematics at all: it loads \texttt{amsmath} and never uses it. So the note's provenance claim is substantially true and bibliographically wrong. It points at a real formula in a real file under a name that resolves to a different file.
+
+\begin{Correspondence}{The consensus note's referent}{Grep the Overleaf tree for the formula and see which file it lands in.}
+\begin{Check}
+grep -rn "c_b^2" "Categorical Database Architecture/"    # nothing: the named file has no such formula
+grep -rn "c_b^2" "Spacetime Database Topology/main.tex"  # the Born-rule display, line 178
+\end{Check}
+The rule row remembered a formula correctly and a filename incorrectly. That is worth one sentence in a book about a database whose central discipline is that identity is a rigid designator and a name is only a witness: the note attached a name to an idea and the name drifted, in the rule layer, in the row the architecture leans on hardest for epistemic honesty.
+\end{Correspondence}
+
+Third, and this is what Ch.08 established and Ch.16 must live with: the discrepancy has never been fittable. On the archived instance, rows in \texttt{r} carrying a \texttt{v} key: one, out of 256,619. On this one: zero, out of zero. The wipe did not change that situation, it only made it cheaper to state. The law is not merely unfit. It has never had a corpus, and nothing currently running is generating one.
+
+\paragraph{In your instance.} This row arrives on your boot announcing that it is a guess. It starts mattering the first time two people witness the same thing differently. You wire up a chip, you write \texttt{\{"type":"measured"\}} from a blob to sample \texttt{LAO-STO-0417B} with \texttt{c=0.9} because you bonded it yourself; a labmate writes the same witness to \texttt{LAO-STO-0417C} with \texttt{c=0.4} because that is what the gel-pak lid said. The \texttt{consensus} view weights both by \texttt{c} and reports a number. That number is exactly as good as the law, and the law is \texttt{linear} because nobody has fit it. What you have that the email corpus never had is a way to settle it: you can go back to the chip, look at the Hall bar under a microscope, and find out who was right. That settlement is an outcome row, and outcome rows are the only thing a fit can eat. An instrument lineage would be the first corpus in this system's history with ground truth in it.
+
+\section{boundary-ref-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-04",
+    "name": "boundary-ref-v1",
+    "note": "immutability is referential integrity, not epistemic
+             warrant",
+    "type": "rule",
+    "level": 2,
+    "definition": "external immutable identifiers enter as boundary
+                   refs: {kind:ref, scheme, id}. Identity is the rigid
+                   designator; names/titles are witnesses. Never mint
+                   internal IDs for external immutables. Cross-scheme
+                   identity via same witnesses. Dereference lazily;
+                   dereferenced content lands as observations."
+}
+\end{lstlisting}
+
+The note is the line worth memorizing: \emph{immutability is referential integrity, not epistemic warrant}. A DOI resolves stably forever. That says nothing whatever about whether the paper is right. The rule keeps those two properties apart, and keeping them apart is what lets a retracted paper keep its DOI and lose its confidence.
+
+One drift to record, because the previous version of this chapter recorded it and the wipe settled it in an unexpected direction. The rule says \texttt{\{kind:ref, scheme, id\}}. The project's \texttt{CLAUDE.md} says \texttt{\{type:'ref', scheme:'doi'|'domain'|'asana-gid'|...\}}, and the Names instance held 11,972 objects spelled \texttt{type}. So \texttt{kind} had become \texttt{type} in the code, the rule row still said \texttt{kind}, and the advice was to quote the rule for the idea and the code for the shape.
+
+Those 11,972 rows are in the dump. The only code that writes refs in this universe is \texttt{blob()} in \texttt{differentiate-instrument.sql}, and it writes \texttt{kind}, as does the \texttt{blobs} view that reads them back. The drift is gone. It is worth being exact about why, because this is not a repair: the drift lived in the tissue, the tissue was discarded, and the lineage that replaced it happens to spell the field the way the rule always said. Nobody reconciled the disagreement. One of the two parties left.
+
+\begin{Correspondence}{kind versus type in boundary refs}{Count refs under each spelling in the live instance, then read which spelling \texttt{blob()} writes.}
+\begin{Check}
+SELECT count(*) FROM o WHERE j->>'type'='ref';   -- 0
+SELECT count(*) FROM o WHERE j->>'kind'='ref';   -- 0   (the instance is empty; no refs yet)
+
+-- differentiate-instrument.sql, blob():
+--   jsonb_build_object('kind','ref','scheme','sha256','id',lower(hash))
+-- differentiate-instrument.sql, the blobs view:
+--   WHERE o.j->>'kind' = 'ref' AND o.j->>'scheme' = 'sha256'
+-- So the first ref this instance ever stores will be spelled the way the rule says.
+\end{Check}
+The irony the old chapter noted still stands and has only changed target. The rule that says ``identity is the rigid designator; names are witnesses'' spent two weeks disagreeing with the code about the name of one of its own fields, and the disagreement ended when the instance it lived in was discarded rather than when anybody noticed and fixed it.
+\end{Correspondence}
+
+\paragraph{In your instance.} Read \texttt{scheme} as \texttt{sha256} and the rule is about your files. A DOI is somebody else's rigid designator; the sha256 of the TDMS file your LabVIEW acquisition just wrote is one you mint by measurement, and it obeys every clause here. It is an external immutable, so you never give it an internal id of your own: the hash \emph{is} the id. Since 2026-07-17 that clause is enforced by construction rather than by discipline. \texttt{blob()} computes the row's \texttt{o.i} from the digest itself with \texttt{uuid\_from\_sha256}, so the id is not minted at all, it is derived: hash \texttt{9f2bc1a4e8d05f37...} and the object comes back as \texttt{9f2bc1a4-e8d0-8f37-...}, on your rig and on the lab copy and on any machine that never spoke to either. The truncation is real and the rule's own logic covers it. Six bits go to the version and variant fields, so the id is a 122-bit slice of the digest and not the digest; the full hash stays in \texttt{j->>'id'} and that is what you verify against. The index is not the evidence. The filename is a witness and a weak one, because \texttt{cooldown-01.tdms} is a name three rigs have used this month. Cross-scheme identity via \texttt{same} witnesses is what you use when the same run is also an entry in a lab notebook and a row in someone's spreadsheet: three schemes, one \texttt{same} witness each, no merging. And the note transfers without a word changed. That your file's hash resolves stably forever says nothing whatever about whether the lock-in reference was wired correctly. Immutability is referential integrity, not epistemic warrant. That is what lets a bad sweep keep its hash and lose its confidence.
+
+\section{snapshot-on-observation-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-04",
+    "name": "snapshot-on-observation-v1",
+    "type": "rule",
+    "level": 2,
+    "definition": "external mutable systems (sheets, websites, people,
+                   labs) are represented only through dated, hashed
+                   snapshot observations. The control boundary is the
+                   object/observation boundary: the CDB never contains
+                   the external world, only its own observations of it."
+}
+\end{lstlisting}
+
+The second sentence is the structural claim of the whole taxonomy, and Ch.17 does the analysis. What belongs here is a contradiction with the founding document. DESIGN.md \S2 says external services enter the site ``via the identity map''. DESIGN.md \S5, added the next day, says the database never contains the external world, only its own observations of it. Those are not compatible. An identity map would put Asana's state inside the site. The rule says you may not.
+
+\begin{Correspondence}{DESIGN.md contradicts itself between \S2 and \S5}{Read DESIGN.md line 37 (``external services via the identity map'') against line 105, quoted above and instantiated as this rule row.}
+\S5 is right and \S2 is a first-pass leftover. The interesting part is which one became data. Four of \S5's ideas are rule rows in the live instance, and they survived the wipe because they were written into the genome: this one, \rulerow{boundary-ref-v1}, \rulerow{source-as-instrument-v1}, \rulerow{staleness-decay-v1}. None of \S2's categorical apparatus is a row, and none of it ever was. Ch.14 reports that scoreboard; this row is one of the four.
+\end{Correspondence}
+
+\paragraph{In your instance.} The definition names labs on purpose. The mutable external systems you will hit on day one are the file path the DAQ wrote to, the fridge's calibration sheet, the sample-growth spreadsheet the person down the hall maintains, and the version of the Asylum software that produced a scan. None of those may be stored as a fact. Each enters dated. The path is the sharpest case and the instrument lineage builds a function for it: \texttt{blob\_seen\_at(hash, path, host)} does not record where the bytes \emph{are}, it records that on some date, on some machine, you saw them there. Call it again next month after you reorganize \texttt{Y:\textbackslash raw} and you get a second row, not a correction. The history of where a blob has lived becomes data, and nothing in the graph breaks. The structural claim is the same one, in your idiom: your database never contains the fridge. It contains your observations of the fridge.
+
+\section{source-as-instrument-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-04",
+    "name": "source-as-instrument-v1",
+    "type": "rule",
+    "level": 2,
+    "definition": "an external source is an evidence-type writ large:
+                   it accrues calibrated reliability from outcome rows
+                   generated wherever its claims overlap data we
+                   control; replication is a witness between claim
+                   objects; trust composes along provenance with the
+                   empirically fit composition law; structural priors
+                   (venue, retraction history) seed and are replaced by
+                   measurement. The compiled profile of a source
+                   (coverage, quirks, systematics, calibration record)
+                   is produced by the same compiler as person profiles
+                   and is consulted by queries to interpret the source."
+}
+\end{lstlisting}
+
+The finest idea in the corpus, printed here and analyzed in Ch.17. Its ancestry, since this is the chapter of record: DESIGN.md \S5 states it as ``a source is an instrument; estimate its transfer function, not its truth'', and points back at CDA.tex for the precedent (``instruments as observers''). What CDA.tex actually contains is the four-tuple gloss: when, what, what value, who. That is the honest core of the ancestor paper and it is genuinely the seed of this rule. What CDA.tex has no notion of, anywhere, is reliability, weight, confidence, or calibration; uncertainty appears in it exactly once, under Future Work, as ``Uncertainty Propagation''. So the descent claim is real and thin: the ancestor supplied the observer slot, and everything that makes the observer an instrument was added later.
+
+\paragraph{In your instance.} This is the one rule you get to read literally rather than by analogy, and it is worth noticing that the metaphor runs backwards for you. Everyone else has to be told that a source behaves like an instrument. In your database the source \emph{is} an instrument: the lock-in with serial \texttt{SR830-4821} is an \texttt{o} row and it is also the thing whose transfer function you have been estimating since your first week. So read the definition straight. It accrues calibrated reliability from outcome rows wherever its claims overlap data you control, which is exactly what happens when you put a known resistor on the same rig and compare. Replication is a witness between claim objects, which is the same sample measured on the Leiden and on the Oxford. Structural priors seed and are replaced by measurement, which is why a brand-new amplifier starts on its datasheet and a channel that has been miswired once starts lower. And the last sentence is the one that pays: the compiled profile of a source, its coverage, its quirks, its systematics, its calibration record, is produced by the same compiler that profiles anything else and is consulted by queries to interpret it. A rig with a known 90-degree phase problem in one channel is not a rig you throw out. It is a rig with a transfer function, and the transfer function is queryable.
+
+\section{window-censoring-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-04",
+    "name": "window-censoring-v1",
+    "type": "rule",
+    "level": 2,
+    "trigger": "Representable v3 told Jeremy a high-school friend
+                \"entered your world around 2015\"; the archive begins
+                2010 and that account only densified later. Caught by
+                Jeremy on first play session.",
+    "definition": "any min/max derived over a source is censored by
+                   that source's coverage window. first_seen is a claim
+                   about the corpus, never about the world; near the
+                   window edge it is strongly left-censored. Compiled
+                   statements must be phrased corpus-relative, and
+                   confidence in \"first/earliest/never\" claims must
+                   degrade toward the window boundaries. Each source
+                   profile must carry its coverage window."
+}
+\end{lstlisting}
+
+The only row in the live database that still says where it came from. That is the whole content of this chapter's title, sitting in one field of one of nine rows, and the reason it survived is that the genome file happened to carry the \texttt{trigger} across when it dropped the others. Why this one and not the rest is not recorded anywhere.
+
+The trigger is also the cleanest specimen of the whole method. A game the database drove told Jeremy that someone he had known since high school entered his world around 2015. He knew that was false in the way you know your own life is false, and the diagnosis took one step: the archive begins in 2010, the friend's account densified later, and the earliest message is not the earliest acquaintance. Caught on the first play session, and the correction became a row the same day.
+
+The rule's reach is much wider than the bug. Every \texttt{min}, every \texttt{max}, every \texttt{first\_seen}, every ``never'' is a claim about a corpus wearing the clothes of a claim about the world, and the confidence in one must degrade toward the coverage boundary of the other. Hence the last sentence, which is an obligation on every source: carry your window.
+
+That obligation now has a new and awkward instance, which is worth naming here rather than letting a reader find it. This instance's coverage window opens on 2026-07-17 at 04:20 UTC and there is nothing before it. Every \texttt{first\_seen} it can compute is left-censored at its own birth, maximally, for everything. The rule was written about an archive that began in 2010 and it applies with more force to a database four hours old than it ever did to that one.
+
+\paragraph{In your instance.} Your sweep range censors your extrema, and this is the same sentence as the one about \texttt{first\_seen}, in a different costume. You cooled to 300 mK and swept the gate from $-2$\,V to $+2$\,V, and now you have a number you want to call the lowest resistance of the sample. It is not. It is the lowest resistance \emph{over that sweep}, and near either end of the range it is exactly as left-censored as a first message near the start of an archive: the minimum may well be sitting at $-2.1$\,V where you did not look. ``The device never turns off'' means it never turned off in the window you swept. ``The transition is at 200 mK'' means the coldest thing you did was 300 mK and you are extrapolating. The rule's obligation lands on you unchanged: every source carries its coverage window, and your sources are sweeps, so a sweep's window is its range, its step, its date, and the fridge's base temperature that day. Store those with the blob and the censoring is at least visible. Leave them out and every \texttt{min} in your database is a claim about the world that is secretly a claim about a knob.
+
+\section{staleness-decay-v1}
+\label{sec:staleness}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-04",
+    "name": "staleness-decay-v1",
+    "type": "rule",
+    "level": 2,
+    "status": "proposed, not yet fit",
+    "definition": "confidence in facts about mutable referents decays
+                   with age: c(t) = c0 * decay(fact_type, age). Decay
+                   curves are to be FIT from the corpus (empirical
+                   half-life of the fact type), not decreed."
+}
+\end{lstlisting}
+
+The previous version of this chapter called this row the sharpest contradiction in the source set, and the contradiction was between two texts. The Names instance carried a definition saying the curves were to be fit from ``the email corpus'', with the fact types spelled out: ``empirical half-life of addresses, affiliations, phone numbers''. The genome file carried the text printed above, in which the email corpus had become ``the corpus'' and the three fact types had become ``the fact type''. One rule name, two texts, and nothing in the data recording that an edit had happened: no version bump, no \texttt{supersedes}, no note. The file's header documented two removals and did not mention that a rule body had been rewritten. The chapter's charge was that the genome extraction violated the rules-as-data discipline in the act of asserting it, and the prediction was that loading the genome into a fresh instance would leave two divergent texts for one name with nothing to say which was authoritative.
+
+That is not what happened, and the outcome is worse than the prediction in a way worth slowing down for. The genome was loaded into a fresh instance and the other text did not come with it, because nothing came with it. There are not two texts in this database. There is one, and it is the undocumented rewrite, and it is now simply what the rule says. The original is in a 1.18\,GB dump on a disk. Nothing in the live instance records that this row was ever edited, that another wording existed, or that the edit narrowed the rule's stated corpus from a specific archive to a placeholder.
+
+\begin{Correspondence}{The genome's rewrite is now the only surviving text}{Read the live definition, then read the archived one out of the pre-big-bang dump; nothing in the live instance connects them.}
+\begin{Check}
+SELECT j->>'definition' FROM o WHERE j->>'name'='staleness-decay-v1';
+-- live:     ...FIT from the corpus (empirical half-life of the fact type),
+--              not decreed.
+-- archived: ...FIT from the email corpus (empirical half-life of addresses,
+--              affiliations, phone numbers), not decreed.
+--              (ydb-pre-bigbang-2026-07-17.dump, o.i=114671)
+-- one name, two texts, and only one of them is in a running database
+SELECT count(*) FROM o WHERE j ? 'supersedes';   -- 0: no row records any supersession at all
+\end{Check}
+The edit was defensible on its own terms and remains so: the genome is meant to be domain-agnostic and email is Names tissue. The defect was never the edit. It was that the edit left no trace, and a big bang does not repair that, it completes it. The correct move under the project's own law was a \rulerow{staleness-decay-v2} carrying \texttt{supersedes}, and it would have cost one line then and cannot be made to cost one line now, because the row it would have superseded is no longer in a database that can be queried.
+\end{Correspondence}
+
+The same class, smaller, twice over. \rulerow{divergence-is-data-v1} lost its \texttt{trigger} field and the tail of its note. \rulerow{oplog-vs-blob-v1} lost its \texttt{trigger} and had \texttt{note2} folded into \texttt{note} with the payoff list dropped. The genome file calls these ``the genome copy''. They were not copies then and the point is now moot in the only way that matters: they are the originals, because the things they were paraphrases of are not running anywhere.
+
+The other half of this row is unchanged and is now unfalsifiable for a new reason. It has said \texttt{"status": "proposed, not yet fit"} since 2026-07-04. For twelve days it said that while the email archive it named sat in the same database, which Ch.17 called the cheapest available empirical win in the whole system: the corpus existed, the rule existed, the method was written down in the rule, and nobody ran the regression. The archive is now in a dump and the instance holds nothing. The status field is still accurate. It is accurate for a worse reason than it used to be.
+
+\paragraph{In your instance.} You already believe this rule. You just call it calibration drift. A thermometer offset measured in March is not, in July, the claim it was in March, and no honest person treats it as one; the confidence in it decays with age, and the rate depends on which quantity you are talking about, because a sample's growth date never goes stale and a mixing-chamber calibration goes stale in months and an amplifier gain that follows the room temperature goes stale in an afternoon. That is \texttt{c(t) = c0 * decay(fact\_type, age)} with no reinterpretation at all: \texttt{fact\_type} is your quantity, and the whole content of the rule is that the curve is fit rather than decreed. Your version is more tractable than the email version, for the same reason the consensus law is. Every time you recalibrate, you measure how wrong the old value had become over a known interval. That is one point on the decay curve, generated for free by work you were already doing. Do it a few dozen times and \texttt{"status": "proposed, not yet fit"} stops being true of your instance, whatever it says in Jeremy's. Note that it is now easier for you than for him: he has an empty database and a dump, and you have a fridge.
+
+\section{divergence-is-data-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-16",
+    "name": "divergence-is-data-v1",
+    "note": "Justification is calibration, not taste. The consensus law
+             is still seed-prior: linear vs quadratic (Born) is an
+             unfit empirical parameter, and preserved disagreement IS
+             the training corpus for that fit. CRDT strong eventual
+             consistency resolves conflict silently at write time and
+             the resolved-away divergence is unrecoverable: DELETE
+             wearing a nice hat. Geometrically: forced convergence
+             asserts path-independence (zero curvature); this rule
+             asserts the curvature is real and is signal.",
+    "type": "rule",
+    "level": 2,
+    "implies": "Google Docs / OT / CRDT are rejected as the document
+                model. The model is branching op-log: Everett, not
+                Copenhagen.",
+    "definition": "No write path may force convergence between
+                   concurrent authors. Simultaneous edits produce
+                   distinct branches (r.b); every branch is retained
+                   and none is privileged. Merge is never automatic: it
+                   is a deliberate realize() event, and it leaves both
+                   parents standing. Co-presence (live, low-latency
+                   visibility of another author edits) and convergence
+                   (ending with one version) are separable properties;
+                   take the first, refuse the second."
+}
+\end{lstlisting}
+
+Two things this row has lost, and both matter to chapters that quote it.
+
+It has lost its trigger. The archived row recorded a design session on 2026-07-16 in which somebody proposed making co-authored blobs behave like Google Docs via a CRDT, Jeremy's instinct was to keep the versions and merge later, and the field then did something the other rules never did: it noticed that the instinct was already in the schema, as amendment 2 from 2026-07-03, which says \texttt{realize()} records branch selection as an event and leaves the losers standing. The rule was not new. It was the substrate finally saying out loud what it had been doing for thirteen days. None of that is in the database now. It is in this paragraph and in a dump.
+
+It has also lost a clause. The archived note read ``it is DELETE wearing a nice hat, and it destroys the only data that can fit the law''. The live note reads ``the resolved-away divergence is unrecoverable: DELETE wearing a nice hat''. The nice hat survived and the reason for the objection did not. That is the wrong half to lose, because the objection to CRDTs in this design is not that convergence is inelegant, it is the causal claim in the dropped clause: the divergence a CRDT resolves away is the only material that could ever fit \rulerow{consensus}. Ch.15 takes that clause apart, including the circularity that the corpus in question does not yet exist. Ch.15 is now quoting this book rather than the database.
+
+What survived is the geometry. ``Forced convergence asserts path-independence (zero curvature); this rule asserts the curvature is real and is signal'' is the only occurrence of the word ``curvature'' in the entire corpus. There is no prior art anywhere for the claim, no paper, no draft, no note. Ch.15 builds it from this clause and nothing else. Here it is only printed.
+
+The last sentence of the definition is the one most likely to be misread as a rejection of collaboration, so read it again: \emph{co-presence and convergence are separable properties; take the first, refuse the second}. Nothing here forbids seeing your coauthor's cursor.
+
+\paragraph{In your instance.} The case is concrete and it will happen to you inside a month. You say a scan is of \texttt{LAO-STO-0417B}; the person who ran the AFM says it is \texttt{0417C}. Both of you write a \texttt{measured} witness from the same blob, to different samples, with real confidence, because both of you have real reasons. The rule says no write path may force convergence, so nothing in the substrate picks. You get two branches in \texttt{r.b}, both retained, neither privileged, and \texttt{consensus} reports the disagreement rather than hiding it. Then somebody goes and looks: the growth log, the bond pattern, the timestamp on the gel-pak photo. That is a \texttt{realize()} event, deliberate, dated, attributable, and it leaves both parents standing. What you must not do is what the ordinary tooling does for you automatically. Last-write-wins on a shared spreadsheet cell would have silently made one of you right, and the record that two competent people disagreed about a sample assignment, which is the only data that could ever calibrate how much to trust a sample assignment, would be gone. It is \texttt{DELETE} wearing a nice hat. In a lab the losing branch is often the more interesting one, because it is the fingerprint of an ambiguity in your labelling scheme that is going to bite someone else next week.
+
+\section{oplog-vs-blob-v1}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+{
+    "date": "2026-07-16",
+    "name": "oplog-vs-blob-v1",
+    "note": "Hash is identity; path is a hint. A path is not immutable
+             (files move, get overwritten, get re-saved by the DAQ with
+             the same name and different bytes), so a path CANNOT be a
+             boundary ref; it enters as a dated snapshot per
+             snapshot-on-observation-v1. Git model: the live thing
+             (mutable op-log, working tree) and the citable thing
+             (immutable hashed snapshot, commit) are DIFFERENT OBJECTS.
+             The hash only ever addresses the second.",
+    "type": "rule",
+    "level": 2,
+    "under": "divergence-is-data-v1",
+    "definition": "The fork between op-log storage and blob storage is
+                   decided by CONCURRENCY, not by size. Sole-author
+                   append-only streams (instrument traces: a fridge
+                   sweep has exactly one author and every op is an
+                   append, so there is nothing to merge) are blobs:
+                   content-addressed by sha256, entering as boundary
+                   refs per boundary-ref-v1 with scheme=sha256.
+                   Multi-author random-access documents are op-logs in
+                   r, compacted to hashed snapshots. Raw traces NEVER
+                   enter o or r as rows."
+}
+\end{lstlisting}
+
+The youngest rule, minted the same day as \rulerow{divergence-is-data-v1} and carrying \texttt{"under": "divergence-is-data-v1"}. That field used to be notable as the only cross-reference pointing at another rule as a parent rather than as a predecessor. It is now the only rule-to-rule pointer of any kind in the database: no row carries \texttt{supersedes}, because the only row that ever did was \rulerow{shared-mailbox-v2} and it is not here.
+
+The criterion is the thing to take away and it is counterintuitive enough to state twice: \textbf{the fork is decided by concurrency, not by size}. A four-gigabyte Leiden cooldown sweep is a blob not because it is large but because it has exactly one author and every operation on it is an append, so there is nothing that could ever need merging. A two-kilobyte paragraph two people are editing is an op-log, because there is. Size is a red herring that happens to correlate.
+
+The Git framing in the note is what makes the rule teachable. Your working tree and your commit are not the same object. One is mutable and you edit it; the other is immutable and you cite it; and the hash only ever addresses the second. That distinction is why ``fingerprint the file'' and ``collaborate on the file'' are not in tension: they are operations on two different things. The archived row carried this as a separate \texttt{note2} field, which the previous version of this chapter noted drily as evidence that the rule schema has no schema and a second thought becomes \texttt{note2}. The genome folded it back into \texttt{note}, so no row in the live database has a \texttt{note2}. The tidier shape arrived the same way everything tidy in this instance arrived, which is to say by transcription rather than by decision.
+
+\paragraph{In your instance.} This rule was written for you. Its archived trigger said so in as many words, \emph{opening the substrate to team members for instrument data}, and the failure mode it forbids is your ten-million-point sweep arriving as ten million rows in \texttt{r}. So the rule is a boundary you can trip over on your first afternoon, and the instrument lineage exists to make the correct move the easy one. \texttt{differentiate-instrument.sql} adds zero tables, which is the finding rather than an omission: if you catch yourself writing \texttt{CREATE TABLE measurement\_points}, you are about to violate this rule. Hash your TDMS file, ref the hash, hang the provenance off the ref, and leave the bytes on disk. Against an empty instance, in full:
+
+\begin{lstlisting}
+-- the durable things
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"LAO-STO-0417B","growth":"2026-04-17"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"SR830-4821","model":"SR830"}');
+INSERT INTO o (j) VALUES ('{"kind":"cooldown","fridge":"leiden","started":"2026-07-14"}');
+
+-- the bytes: 4 GB of sweep, one row. Hash from: sha256sum leiden-01.tdms
+-- blob() demands all 64 hex characters. An abbreviation is not a fingerprint
+-- and it raises rather than storing something that looks like one.
+SELECT blob('9f2bc1a4e8d05f37b6c92e1d840a7c53fe1b28d96470af35c2e8b91d0364a7fe',
+            '{"media_type":"application/x-tdms","bytes":4294967296}');
+-- -> 9f2bc1a4-e8d0-8f37-b6c9-2e1d840a7c53   the id IS the digest, truncated
+
+SELECT blob_seen_at('9f2bc1a4e8d05f37b6c92e1d840a7c53fe1b28d96470af35c2e8b91d0364a7fe',
+                    'Y:\raw\2026-07-14\leiden-01.tdms', 'rig-leiden');
+
+-- provenance: which sample, which box, which cooldown
+INSERT INTO r (o1, o2, d)
+SELECT b.o_id, s.i, '{"type":"measured"}'
+FROM blobs b, o s
+WHERE b.sha256 = '9f2bc1a4e8d05f37b6c92e1d840a7c53fe1b28d96470af35c2e8b91d0364a7fe'
+  AND s.j->>'id' = 'LAO-STO-0417B';
+
+-- and read it back
+SELECT sha256, bytes, last_seen_path, n_sightings FROM blobs;
+-- 9f2bc1a4...a7fe | 4294967296 | Y:\raw\2026-07-14\leiden-01.tdms | 1
+\end{lstlisting}
+
+Run \texttt{blob()} twice on the same hash and you get the same \texttt{o.i} back, which is the whole payoff stated as behaviour: re-ingesting a file you already had is recognized as identical instead of duplicated as new. Since 2026-07-17 that holds across machines too, because the id is computed from the digest rather than handed out by a counter. Move the file and call \texttt{blob\_seen\_at} again and \texttt{n\_sightings} goes to two while every witness you hung off the hash keeps pointing at the right thing. Then note what the criterion buys you when you argue with it. That 4\,GB sweep is a blob \emph{not} because it is big: it is a blob because it had exactly one author and every operation on it was an append, so there has never been anything to merge. The two-kilobyte paragraph you and your advisor are both editing goes the other way, into \texttt{r} as an op-log, because there is. Concurrency, not size. Size is a red herring that happens to correlate, and it correlates well enough in a lab to fool you.
+
+\section{The rules that are not here}
+
+Four rule rows that the previous version of this chapter printed are not in the database, and they are not in it for two different reasons that should not be confused.
+
+\rulerow{egress-test-v1} and \rulerow{unattended-safety-v1} were live rows on the Names instance and were never in the genome. The chapter's complaint about them was that the omission was unargued: the file's criterion for genome is domain-agnosticism, and neither rule is about email, or people, or Names. \rulerow{egress-test-v1} says every component must have a documented full-fidelity exit executable in an afternoon, and carries the best sentence in the rule layer, which is Jeremy's: \emph{egres literally means escape; I don't want to escape and find myself in a bigger trap}. Its corollary is architecture on its face, and domain-agnostic on its face: raw store, extractor, the one brain, compiled views, and no source gets an exception. \rulerow{unattended-safety-v1} says bypass-permissions clears Claude's gates and not the operating system's, and it was learned from a UAC dialog that would have hung a session for a day if Jeremy had left the house. The complaint has now been settled in the worst available way. Both rules were data; they are now prose. \rulerow{unattended-safety-v1} is a bullet in the project's \texttt{CLAUDE.md} house rules, and \rulerow{egress-test-v1} is a parenthetical there, and neither is a row anywhere that a query can reach. A book whose thesis is that rules belong in the database and not in a comment has, as of 2026-07-17, two of its rules in a comment.
+
+\begin{Correspondence}{Two rules demoted from data to prose}{Query the live instance for either name and read the project \texttt{CLAUDE.md} where they now live.}
+\begin{Check}
+SELECT count(*) FROM o WHERE j->>'name' IN ('egress-test-v1','unattended-safety-v1');
+-- 0
+-- both are now sentences in projects/yoneda/CLAUDE.md, which no query reads
+\end{Check}
+This is recoverable and cheap: two \texttt{INSERT} statements, and the archived text is in the dump. It has not been done, and the reason it has not been done is that nothing broke, which is exactly what makes it worth printing here. Prose that used to be data does not announce itself.
+\end{Correspondence}
+
+The other two are \rulerow{shared-mailbox-v1} and \rulerow{shared-mailbox-v2}, and they are a different case. They were the only rules the genome deliberately left out, and the reason it named was that they are about mailboxes and nothing in an instrument lineage has a display name. That reasoning still holds. What is worth keeping is the pedagogy, so here it is without the rows. \rulerow{shared-mailbox-v1} was learned when Chandralekha's component, seeded from \texttt{clsingh}, grew to 9,810 objects at a confidence cut of 0.5, bridged by \texttt{nobody@invalid.invalid} carrying 397 distinct name-edges plus LinkedIn and Google Drive service senders. It declared that an address whose display-name variants span four or more distinct name signatures is a shared mailbox. One day later \rulerow{shared-mailbox-v2} superseded it, and the confession was inside the definition: v1 had false-positived \texttt{clsingh@pitt.edu} and \texttt{pi@example.edu} itself. The rule written to stop Chandralekha's component from exploding had classified Chandralekha's own mailbox, and Jeremy's, as shared. The repair was a second clause, the dominance criterion: four signatures is not enough, the top signature must also carry less than half the named traffic, because a personal address that has run for twenty years accumulates four spellings of its owner's name without ever being shared. v1 had confused ``many spellings'' with ``many people''. You will write a rule with that defect; everyone does. The discipline is that the fix is an insert, the old row stays readable, and the reason it was wrong is in the definition of the row that replaced it.
+
+\subsection{The fifth defect}
+
+And then there is what happened to \rulerow{shared-mailbox-v1} on 2026-07-17, which this chapter has to state carefully because this chapter is where the row was printed.
+
+It was in the database twice. \texttt{o.i = 113403} and \texttt{o.i = 113404}, byte-identical, because an append-only store with no uniqueness constraint on rule insertion accepted the same rule twice and nobody noticed for thirteen days. This book's defects list had five entries. Four were fixed by repair on 2026-07-17. About the fifth, this one, the book said flatly that both rows would be there forever, because nothing here is ever deleted, and that this was the design doing what it says rather than an embarrassment.
+
+Both rows are gone. They were not repaired. The populated instance was wiped and started over from the stem cell, and the duplicate went with everything else.
+
+Say plainly what that does and does not license, because the shape of it invites a conclusion it does not support. Starting over is the only operation in this system that removes history, and it works only because it is not a deletion inside the system. It is a different system with a new origin, and the old one survives as a 1.18\,GB file that nobody can write to. \emph{Nothing is ever deleted} remains true of every universe. It never said anything about how many universes there are. And the price belongs in the same breath as the result: the fix for one duplicated row was the loss of 178,561 objects, 256,619 relations and 601,094 messages, and that was acceptable only because Jeremy judged that none of it was worth keeping and because the mail and the papers it was all derived from still exist and can be read in again. Both of those reasons are contingent. Neither is a property of the design. The duplicate did not motivate the wipe; it was standing next to the wipe when it happened. A big bang is not a repair technique. It is available once, cheaply, at birth, and it gets expensive fast, because the price is everything derived since the last one that cannot be re-derived, and that quantity only grows. Ch.18 carries this as items 6 and 9 and does not close either.
+
+The general defect the duplicate was an instance of is untouched. \texttt{o} rows still cannot be retracted at all. The live database has nine rule rows, no duplicates among them, and exactly the same inability to say in its own language that one of them is spurious. That it currently has no duplicates is not evidence of health. It is evidence that it is a few hours old.
+
+\section{The count}
+
+Nine rows. Nine names. No duplicates, no \texttt{supersedes}, one \texttt{under}, one \texttt{trigger}. Eight rows at level 2 and one at level 0, and nothing at level 1. One rule with no date, because it predates dates. One rule whose provenance note names the wrong file for the right formula. One rule whose text was silently rewritten on the way into the genome and is now, by the genome's own success, the only text there is. Two rules that lost their triggers in transcription and one that lost a clause its own chapter depends on. Two live rules the genome ignored without argument, both of which are now sentences in a markdown file. Zero relations, so zero of these rules has fired on anything.
+
+The previous version of this chapter closed on a count that was not a defect: six of thirteen rows carried a trigger, three of the six were email stories, and only one of those three, \rulerow{window-censoring-v1}, made it into the genome with its definition mentioning no message and no address. That was offered as the only evidence in the book that the separation between genome and tissue is real rather than asserted, and the argument was that a rule learned from a corpus of messages, whose definition survives being read by someone who has only sweeps, was never about messages.
+
+That argument survives and its evidence base has collapsed to one row. Six triggers became one. The other five did not fail the genome's criterion; they were dropped, or they were left behind with the instance they were in, and in no case is the reason in the data. So the separation between genome and tissue is still real and is still visible in the one place it was always visible: \rulerow{window-censoring-v1}'s definition is about \texttt{min} and \texttt{max} over any source with a coverage window, and so are the definitions of the other eight, and none of the nine mentions email. It was about censored windows, and email was merely where it happened to hurt first. What is gone is the ability to see, from inside the database, that any of this was learned rather than decreed. Nine definitions with one story attached is not a rule layer that explains itself. It is a rule layer that has been tidied.
+
+None of that is an argument against rules-as-data. It is what rules-as-data looks like when you can actually read them, which is the point: every defect in the two paragraphs above was found by printing the rows, and not one of them would have been findable if the rules lived in application code. It is also worth saying, since this chapter's ``In your instance'' paragraphs address a reader with an instrument lineage: as of 2026-07-17 the live yoneda instance has \texttt{blob()}, \texttt{blob\_seen\_at}, \texttt{blobs} and \texttt{retract} in it and no people and no papers. Jeremy's instance is an instrument lineage now, and it is as empty as yours.
+
+\begin{Open}{Can the rule layer police itself?}{Give \texttt{o} rows a retraction mechanism, make supersession point at an \texttt{i} rather than a name, then re-run this chapter's inventory.}
+The rule layer is the one layer of this system that is exempt from the system's own laws. Relations get \texttt{r\_active}; objects get nothing. Rules are objects. So the layer that legislates retraction cannot be retracted, the layer that legislates against silent edits was silently edited, and the layer that legislates that identity is a rigid designator has no way to point at a row at all. This is not fatal and it is not hidden. It is a hole with a known shape, and the shape is: append-only was designed for \texttt{r} and rules were put in \texttt{o}.
+
+The wipe took away this chapter's instances of the hole and left the hole. There is no duplicate rule row now, and no \texttt{supersedes} pointing at an ambiguous name, because there is no \texttt{supersedes} at all. Do not read that as progress. The hole's next instance is already written down and dated: \rulerow{universal-epoch-v1} instructs its own successor to be a \rulerow{universal-epoch-v2}, which is supersession by name, in the level-0 row, in the field that exists to tell you how to change the origin of time. The first time anybody follows that instruction, the system will have two rows for one origin and no way to say in its own language which one is in force.
+\begin{Check}
+-- today, against the live instance
+SELECT count(*) FROM o WHERE j->>'type'='rule';       -- 9
+SELECT j->>'name', count(*) FROM o WHERE j->>'type'='rule'
+  GROUP BY 1 HAVING count(*) > 1;                     -- no rows: no duplicates
+SELECT count(*) FROM o WHERE j ? 'supersedes';        -- 0: nothing has been superseded yet
+SELECT count(*) FROM pg_views WHERE viewname='o_active';  -- 0: the mechanism does not exist
+
+-- what the repair should make true, and does not yet
+-- 1. an o_active view, so an o row can be retracted the way an r row is
+-- 2. supersedes points at an i, not a name, so it resolves to exactly one row
+-- 3. universal-epoch-v1's "revision" field is rewritten to prescribe (2)
+\end{Check}
+\end{Open}

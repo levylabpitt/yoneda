@@ -1,0 +1,249 @@
+\chapter{The Rule Tower}
+
+This chapter is about the mechanism, not the content. The rules themselves, all nine rows of them, are quoted in full in Chapter~\ref{ch:the-rules}, with their triggers and their audits. Here the question is narrower and prior: what \emph{is} a rule, where does it live, and what does the system do when the rule needs to change.
+
+The answer is short enough to state now. A rule is a row in \texttt{o} whose JSON payload has \texttt{type:'rule'} and a \texttt{level} field. That is all. There is no rules table, no rules engine, no configuration file, no migration. A rule is an object in the same table as every other object, distinguished from them by a string in a JSONB document and by nothing else.
+
+The instance this chapter audits was born on 2026-07-17 and holds ten objects: the nine rules and the big-bang row that records its birth. Every count in this chapter is small enough to check by eye, which is a temporary and pleasant condition, and Section~\ref{sec:holes} covers what it cost to get there.
+
+\section{Level is a column}
+
+DESIGN.md states the principle at line 60, and the sentence is worth having exactly:
+
+\begin{quote}
+No level is architecturally privileged. The resolver's rules, the calibration procedure, the procedure for revising the calibration procedure: all live in the same ledger as ordinary objects. A rule is a document; a change to a rule is an event; a rule's performance is measured from outcomes exactly like a witness's reliability. ``Level'' is a column, not a tier of the software.
+\end{quote}
+
+This is the design's most successfully executed idea, and the chapter should claim it before it starts taking things apart. The receipt is one query:
+
+\begin{verbatim}
+select count(*) from o where j->>'type'='rule';
+-- 9
+\end{verbatim}
+
+Nothing else in the schema knows that rules exist. Grep \texttt{stem-cell.sql} for the word \texttt{rule} and you find it in comments and in nine seed \texttt{INSERT}s, never in a \texttt{CREATE}. The consequence is the one the design doc wanted: writing a rule about rules costs a row, not a release.
+
+\begin{Correspondence}{The tower needs no schema change to grow a storey}{Insert a level-3 rule row on a throwaway instance, then re-inspect the DDL and the level histogram.}
+This is the coinductive claim from DESIGN.md line 61 (``the tower is coinductive: at any moment the system operates at a finite truncation, but the truncation level is state, not specification'') reduced to something checkable in thirty seconds. It checks out. Run on a container booted from the stem cell and discarded afterwards, not on the live instance.
+\begin{Check}
+INSERT INTO o (j) VALUES ('{"type":"rule","level":3,"name":"test","definition":"..."}');
+\d o
+-- the DDL is unchanged: two columns, i and j, no new column, no new table,
+-- no new constraint
+SELECT j->>'level', count(*) FROM o WHERE j->>'type'='rule' GROUP BY 1 ORDER BY 1;
+-- 0|1, 2|8, 3|1: a storey that did not exist, with no code deployed anywhere
+\end{Check}
+The architecture's stated obligation is ``never to foreclose the ascent,'' and on this narrow point it discharges the obligation completely, because there is nothing in the substrate that could foreclose anything: the substrate does not know what a level is.
+\end{Correspondence}
+
+The floor of that histogram is new and is the subject of the next section. It is also, on its own, a second demonstration of the same point, and a sharper one. DESIGN.md \S4 specifies rules as ``rows in \texttt{observation} with kind = rule, \texttt{level >= 2}''. The genome now boots with a level-0 row. The doc's own lower bound was violated without a schema change, without a migration, and without anything anywhere objecting, because the bound was never encoded in a place that could object. That is the mechanism working exactly as advertised, and it is worth noticing that ``the mechanism works'' and ``the doc's constraints are enforced'' are, here, incompatible.
+
+The comparison the design doc invites, and that should be resisted, is to \texttt{pg\_catalog}. Every Postgres database describes itself inside itself. DESIGN.md's corollary at line 61, ``the system's description of itself is inside the system, which is what makes it a brain rather than a database,'' is rhetoric, and self-description is not sufficient for brainhood. But there is a weaker claim underneath it that is true and is not true of \texttt{pg\_catalog}: the rules governing the data are revisable by the same mechanism as the data. You cannot retract a schema change with an outcome row and re-run history. You can, in principle, do that to a rule. Whether you can in practice is Section~\ref{sec:holes}, and the answer is still no.
+
+\section{A physical constant, living as data}
+
+Until 2026-07-17 the honest objection to rules-as-rows was that nothing read them. Nine rows sat in \texttt{o} and every one of them was addressed to a human or an agent. The \texttt{consensus} view is a \emph{rendering} of the \texttt{consensus} rule row, hand-written to match it and hand-regenerated if the row changes; the row does not drive the view, it documents it. On that reading, rules-as-data is a filing convention with a good story attached, and the story is the part doing the work.
+
+\texttt{universal-epoch-v1} is the first row that breaks the objection. It is level 0, it carries \texttt{seconds\_to\_unix\_epoch} = 435400000000000000, and \texttt{t\_universe()} dereferences it on every single call:
+
+\begin{verbatim}
+CREATE OR REPLACE FUNCTION t_universe(ts TIMESTAMPTZ DEFAULT now()) RETURNS NUMERIC
+LANGUAGE sql STABLE AS $$
+  SELECT (SELECT (j->>'seconds_to_unix_epoch')::NUMERIC
+            FROM o WHERE j->>'name' = 'universal-epoch-v1' ORDER BY i LIMIT 1)
+       + extract(epoch FROM ts)::NUMERIC
+$$;
+\end{verbatim}
+
+The constant is not a \texttt{\#define}, not a GUC, not a column default, not a line in a config file. It is a row, and the function is a lookup. Change the row and the coordinate system moves, at once, for every query, with no deploy. This is the cleanest example the chapter has of why rules-as-rows is not a gimmick, and it is worth being precise about why the example is clean: the level-2 rules are policies that a reader obeys, so storing them as rows is a choice about where to keep documentation. The level-0 row is arithmetic that a function performs. Nothing about it is documentation. If the row is missing, \texttt{t\_universe()} returns null and the instance cannot say what time it is.
+
+The physics is the reason it has to be a row rather than a number, and it should not be softened into a flourish. The age of the universe is $13.797 \pm 0.023$~Gyr (Planck 2018 results VI). That uncertainty is about $7.3 \times 10^{14}$ seconds, which is longer than the entire history of anything the database will ever hold. So the count of seconds since the Big Bang cannot be \emph{measured} to a precision any database would care about: roughly four of the eighteen digits are physically meaningful, and none of them are meaningful as an absolute. The constant is therefore \emph{declared}, exact by fiat. This is what SI does with $c$. The metre stopped being a measurement of a bar in Paris and became a definition, and $c$ is exactly 299792458~m/s not because anyone measured it that well but because we chose to stop measuring it. The same move, for the same reason: what is physical is differences, and differences do not care what you declared the origin to be, provided everyone declares the same thing.
+
+\begin{Correspondence}{Only differences of \texttt{t\_universe} are physical}{Evaluate \texttt{t\_universe} at two times and subtract: the declared constant cancels identically, and the Planck 2018 uncertainty on the age never enters.}
+The absolute value of \texttt{t\_universe(ts)} is a convention. Its uncertainty as a measurement is about $7.3 \times 10^{14}$~s, some fourteen orders of magnitude larger than any interval this system records, so no absolute claim it makes is a claim about the world. Differences, however, are exact: the declared constant appears with opposite signs and cancels identically. \texttt{age()} is such a difference, which is why the genome comments call it exact and are entitled to.
+\begin{Check}
+SELECT t_universe();  -- 435400001784262251.509934 on the live instance
+SELECT age();         -- 239.173326 seconds old at the time of this query
+-- NUMERIC and not double precision, and this is not fussiness: 4.354e17 needs
+-- 18 significant digits and a double carries about 15 to 16, so seconds would
+-- be at the edge of representable and milliseconds would already be gone.
+\end{Check}
+\end{Correspondence}
+
+The corollary is stated in the row itself and it is the interesting half: if cosmology revises the age, \emph{do not edit this row}. Editing it would silently translate every timestamp in every instance that ever agreed to it. A better age estimate is not a correction, it is a different coordinate system, and it enters as \texttt{universal-epoch-v2} carrying an explicit offset. Origins do not get better. They get changed.
+
+That is stated in the row as a warning, and it can be checked as a fact, which turns out to be worth doing, because the warning understates the damage.
+
+\begin{Open}{Superseding the epoch is prescribed but not implemented}{Settled by writing a \texttt{universal-epoch-v2} row and having \texttt{t\_universe()} and \texttt{age()} come out right without editing a function.}
+\texttt{t\_universe()} finds its constant by the literal string \texttt{'universal-epoch-v1'}. A v2 row would therefore be inert: the function would go on reading v1 and the supersession the row prescribes would do nothing until somebody edits the function, which is the deploy that rules-as-rows exists to avoid. And the edit-in-place path the row forbids is worse than it says. The big-bang row stores its own \texttt{t\_universe} as frozen text, computed once at boot under the old convention, while \texttt{t\_universe()} dereferences the row live. Edit the constant and the two operands of \texttt{age()} are in different coordinate systems, so the difference that was supposed to be convention-free returns garbage. Reproduced on a throwaway instance booted from the stem cell:
+\begin{Check}
+SELECT t_universe(), age();
+--  435400001784262389.701689 |   7.607259
+UPDATE o SET j = jsonb_set(j,'{seconds_to_unix_epoch}','"0"')
+  WHERE j->>'name'='universal-epoch-v1';
+SELECT t_universe(), age();
+--  1784262389.703345 | -435399999999999992.391085
+-- age() is not exact. It is exact GIVEN a fixed convention, frozen at both ends.
+\end{Check}
+So ``supersede, do not edit'' is not a matter of taste, it is forced: editing is the one operation that breaks the only physical quantity here. What is missing is that the forced path does not yet work. The lookup should be by \texttt{level=0} and latest, or by whatever mechanism resolves supersession generally, and that mechanism is the same one the next section says does not exist.
+\end{Open}
+
+\section{The doc's own schema violated the doc's own rule}
+
+The best story in this chapter is a small one and it belongs to the founding document.
+
+DESIGN.md declares that no level is architecturally privileged. Then, ten lines later, in \S4, it lists the Phase 0 tables:
+
+\begin{quote}
+\texttt{observation(id, ts, source, kind, raw, extracted\_mentions, location, meta)} : append-only \\
+\texttt{witness(id, ts, o1, o2, evidence\_type, raw\_signal, confidence, provenance, level)} : first-class, retractable \\
+\texttt{outcome(id, ts, witness\_id, verdict\{confirmed|retracted\}, cause, provenance)} : the level-2 ledger \\
+Rules, calibration procedures, priors: rows in \texttt{observation} with kind = rule, level >= 2.
+\end{quote}
+
+Three tables. And \texttt{outcome}, described in the doc's own gloss as ``the level-2 ledger,'' gets a table of its own. That is architectural privilege, spelled out in DDL, two paragraphs after the declaration that there is none. The doc violated its central rule in the first table listing it ever wrote.
+
+The implementation caught it. The live system has two tables. \texttt{witness} and \texttt{outcome} both collapsed into \texttt{r}: a witness is an \texttt{r} row with \texttt{d->>'type'='same'}, and an outcome is another \texttt{r} row pointing at the first row's \texttt{i}. The level-2 ledger is not a separate ledger. It is the same table talking about itself, and it is only able to do that because of the first of the three amendments of 2026-07-03, arrows are reifiable. So the third table was eliminated by reification, and the elimination was a direct vindication of the doc's principle against the doc's schema.
+
+\begin{Correspondence}{The code is more faithful to the design document than the design document is}{Read DESIGN.md \S3 line 60 against \S4 lines 70--73, then count the tables on the live database.}
+The doc privileges \texttt{outcome} with a table of its own. The code does not privilege it with anything: it is an \texttt{r} row like any other, distinguished only by what its \texttt{d} says.
+\begin{Check}
+\dt
+-- two tables, o and r. The doc's third, outcome, is not among them.
+SELECT count(*) FROM r WHERE d->>'type' = 'outcome';
+-- 0, because r is empty: the level-2 ledger exists as a place and has never
+-- been written to on this instance. The absence of the third TABLE is the
+-- claim here. The absence of the rows is a different matter, below.
+\end{Check}
+This is not a criticism of the doc, which was written in a day, and it is worth saying flatly rather than diplomatically because it is the cheerful case: the principle was right, the first attempt to realize it was wrong, and the wrongness was visible in the document itself to anyone reading two sections at once. Chapter~\ref{ch:seven-lines} tells the same story from the schema's side, where the CDA paper's third table, \texttt{evolution}, dies the same death. Reification ate the third table twice, from two different ancestors, for the same reason.
+\end{Correspondence}
+
+\section{The tower, audited line by line}
+
+DESIGN.md \S3 is the best section of the founding document. It is also a program, not a result, and the difference between those two things is the whole point of this book. Here is the section's own list of what it promises, each item graded against the live database as of 2026-07-17.
+
+\paragraph{``Confidence per evidence type is calibrated, not assigned.''} Not delivered. No evidence type in the system carries a measured precision, and on the current instance no evidence type carries anything at all, because \texttt{r} is empty. The previous instance had 256,619 relations and the answer was the same: every confidence in \texttt{r} was a number somebody chose.
+
+\paragraph{``The composition law for confidence along zigzags is fit, not decreed.''} Not delivered. The composition law is the row named \texttt{consensus}, and its own payload still says \texttt{"status": "seed-prior"}. Linear versus quadratic (Born) is still an unfit empirical parameter. The wipe did not change this and could not have: the law was never fit, so there was nothing to lose.
+
+\paragraph{``Decay curves are to be FIT from \labCorpus.''} Not fit. The rule row itself, \texttt{staleness-decay-v1}, carries \texttt{"status": "proposed, not yet fit"}. The doc capitalizes FIT and the row says not fit. Chapter~\ref{ch:calibration} owns the argument that this is the cheapest available empirical win in the entire system; here it is only a line in the ledger of things promised. It is worth noting that the corpus it was to be fit from is now on disk rather than in the database, which changes the cost of doing it and does not change whether it has been done.
+
+\paragraph{``The tower is coinductive; the truncation level is state, not specification.''} Delivered. See the Correspondence above, and see the level-0 row, which arrived as data into a system whose founding document said levels start at 2.
+
+\paragraph{``No level is architecturally privileged.''} Delivered by the code, violated by the doc. See the previous section.
+
+That is one delivered out of five, plus one delivered against the document that promised it. The tower's mechanism works. The tower's content has moved exactly once, downward.
+
+\section{Four holes}
+\label{sec:holes}
+
+The chapter owns four defects in the mechanism. Each is a fact about the live database, not a reading of a document.
+
+\subsection*{1. The tower gained a floor, not a storey}
+
+The level column now takes two values. That is one more than it took for the first fourteen months, and it is not an ascent.
+
+\begin{Correspondence}{The only movement in the level column has been downward}{Group the rule rows by level on the live instance; the histogram has two bars and the new one is underneath.}
+\begin{Check}
+SELECT j->>'level', count(*) FROM o WHERE j->>'type'='rule' GROUP BY 1 ORDER BY 1;
+-- 0|1
+-- 2|8
+-- and that is the entire histogram
+\end{Check}
+There is no level 1 and no level 3. Not one rule governs another rule by means of the level field. The mechanism for ascent is real and free and nobody has used it; what has been used is the mechanism for going the other way, to put a declared constant underneath the laws that were already there.
+\end{Correspondence}
+
+This compounds the audit rather than repeating it. Not one seed prior has been replaced by a measurement, and the level that would hold the procedure for doing the replacing is empty. DESIGN.md names exactly two genuine free choices remaining: the seed priors at day zero, and the current truncation. Both are still free and both are still at their day-zero values, and the instance is now young enough that ``day zero'' is not a figure of speech.
+
+There is one place where a rule does govern another rule, and it is instructive that it is not the level field. \texttt{oplog-vs-blob-v1} carries \texttt{"under": "divergence-is-data-v1"}. The subordination is real, the two rules are at the same level, and the relation between them is a string in a JSON document that nothing dereferences and nothing checks. When the tower finally needed to express one rule standing over another, it reached past the column built for exactly that and used prose.
+
+\subsection*{2. Rules cannot be retracted}
+
+The retraction mechanism covers \texttt{r} and only \texttt{r}. An outcome is an \texttt{r} row whose \texttt{d} carries \texttt{\{type:'outcome', of:<r.i>, verdict:'retracted'\}}, and \texttt{r\_active} resolves latest-outcome-wins over exactly that. Rules live in \texttt{o}. There is no mechanism for retracting an \texttt{o} row at all: no \texttt{o\_active} view, no outcome type that points at \texttt{o.i}, nothing. Grep the stem cell for either and you get no hits.
+
+So the one part of the system that the whole architecture leans on for epistemic honesty is the one part the system's own retraction law cannot touch.
+
+What exists instead is supersession by string. \texttt{universal-epoch-v1} instructs its own successor to ``supersede it with universal-epoch-v2,'' and \texttt{oplog-vs-blob-v1} sits \texttt{"under"} another rule by name. Two things are wrong with that at once. It is not the retraction mechanism, so nothing about latest-outcome-wins applies to it. And it points by name rather than by identity, so nothing enforces that the referent exists, is unique, or is still in force. The Open above is the concrete cost: the epoch row prescribes a supersession path that no code can follow.
+
+The previous instance showed the third thing that is wrong with it, and the way that exhibit left the book is the most interesting fact in this chapter. Until 2026-07-17 this section pointed at \texttt{shared-mailbox-v1}, which named \emph{two} rows, \texttt{o.i} 113403 and 113404, byte-identical, both live, neither superseded in any sense a query could act on. The book said flatly that the duplicate could not be fixed, because nothing is ever deleted, and that this was the design working as specified rather than an embarrassment. That was correct and it is no longer relevant. The duplicate is gone. It was not repaired. It was erased, along with 178,559 other objects and 256,619 relations, by ending the universe it lived in.
+
+That deserves to be said without cleverness. The big bang is the only operation in this system that removes history, and it works precisely because it is not a deletion \emph{within} the system. It is a different system, with a new origin, and the old one is a 1.18~GB frozen artifact on disk that anybody can restore and query. ``Nothing is ever deleted'' remains true of every universe. It says nothing whatever about how many universes there are, and the book had quietly been reading it as though it did. The cost should be stated just as plainly: the fix for one duplicated row was the loss of 178,561 objects, which was acceptable only because \labPI\ judged that none of it was worth keeping and because the sources it was derived from still exist. A big bang is not a repair technique. It is available once, cheaply, at birth, and it gets expensive fast.
+
+\begin{Open}{Can a rule be retracted?}{Settled by exhibiting a retraction mechanism for \texttt{o} rows and demonstrating it on a duplicate rule row.}
+The obvious construction is already available and costs nothing new. An outcome is a relation pointing at an identity, and \texttt{o.i} is an identity, so an outcome row that points at an \texttt{o.i} instead of an \texttt{r.i}, plus an \texttt{o\_active} view mirroring \texttt{r\_active}, would close the hole with one view and one convention. It would also give supersession somewhere to live: \texttt{v2} retracts \texttt{v1} by identity, and \texttt{t\_universe()} reads the active level-0 row rather than a hardcoded name.
+\begin{Check}
+-- the construction, which the schema still does not have:
+INSERT INTO r (d) VALUES ('{"type":"outcome","of_o":"<the o.i>",
+                            "verdict":"retracted","cause":"superseded by v2"}');
+CREATE VIEW o_active AS ...  -- mirror r_active, latest verdict wins, keyed on of_o
+\end{Check}
+The reason this has not been done is not difficulty. Nobody noticed the hole until the rules were counted for this book, and the instance that would have exercised it has since been replaced by one with nothing to retract.
+\end{Open}
+
+\subsection*{3. The rule schema has no schema}
+
+Four keys appear in all nine rule rows: \texttt{type}, \texttt{level}, \texttt{name}, \texttt{definition}. Nothing enforces them and nothing else is common. \texttt{date} appears in eight; \texttt{consensus} has none, because it predates the convention of dating them. \texttt{status} appears in three. Then the singletons: \texttt{law}, \texttt{trigger}, \texttt{under}, \texttt{implies}, \texttt{revision}, \texttt{source}, \texttt{seconds\_to\_unix\_epoch}. Five rows carry a \texttt{note}, which is where anything that did not fit goes.
+
+Nine rows produce eight distinct key sets. The two that agree are \rulerow{snapshot-on-observation-v1} and \rulerow{source-as-instrument-v1}, which both carry exactly \texttt{date}, \texttt{definition}, \texttt{level}, \texttt{name}, \texttt{type} and nothing else. Earlier drafts of this section said nine sets for nine rows, which was a guess dressed as a count, and the guess was in the direction that made the point louder. The real number makes it slightly quieter and does not change it: eight shapes for nine rows is still no schema, and the one coincidence is a coincidence rather than a convention, since nothing anywhere says those two rules should look alike.
+
+\begin{Check}
+SELECT j->>'name',
+       (SELECT string_agg(k, ',' ORDER BY k) FROM jsonb_object_keys(j) k)
+FROM o WHERE j->>'type'='rule' ORDER BY i;
+-- nine rows, eight distinct key sets: snapshot-on-observation-v1 and
+-- source-as-instrument-v1 share date,definition,level,name,type
+\end{Check}
+
+The sharpest version of the point is not the ragged keys, though, it is the discriminator itself. DESIGN.md \S4 says rules are rows with \texttt{kind = rule}. The implementation chose \texttt{type}. \texttt{boundary-ref-v1}, whose entire job is to specify how external identifiers are shaped, prescribes \texttt{\{kind:ref, scheme, id\}}, while the project's own statement of principles writes the same object as \texttt{\{type:'ref', scheme, id\}}. And the newest object in the genome, the big-bang row, is keyed \texttt{kind:'big-bang'}, so the two rows inserted furthest apart in the boot script disagree about the name of the field that says what a row is.
+
+That is the whole observation and it deserves one dry sentence rather than an argument: the rule layer is the layer that polices the shape of everything else, and it has no shape.
+
+\subsection*{4. Level is doing double duty}
+
+\texttt{consensus} is level 2 and is about how evidence composes into truth. \texttt{oplog-vs-blob-v1} is level 2 and is about which bytes go in a table and which go in a file. These are not the same kind of thing, and the column does not distinguish them.
+
+One is an epistemic law: a statement about how confidence propagates, which is exactly the sort of thing the tower exists to hold, and exactly the sort of thing that could in principle be fit against a corpus and found wrong. The other is an engineering policy. It cannot be fit. It has no residuals. There is no measurement that would refute it. It is a rule in the sense of a house rule, not in the sense of a law of evidence, and it sits at the same level as the Born-rule question because \texttt{level} took exactly one value for fourteen months and nothing forced the distinction. \texttt{divergence-is-data-v1} is the same, and knows it: its own note concedes that its justification is calibration rather than taste, which is a way of saying that the law it depends on is somebody else's row.
+
+The level-0 arrival makes this worse in an interesting way rather than better. \texttt{universal-epoch-v1} is the one row in the table whose epistemic status is unambiguous and unambiguously stated: declared convention, exact by fiat, no measurement will ever refute it, and the row says so in its own \texttt{status} field. So the column now separates one un-fittable convention from eight rows that are a mix of un-fittable conventions and unfit laws. It draws a line, and the line is in the wrong place.
+
+\begin{Correspondence}{The level field is less principled than the design document implies}{Read two rules at the same level side by side and ask of each what measurement would ascend a level above it.}
+\begin{Check}
+SELECT j->>'name', j->>'level', j->>'status' FROM o WHERE j->>'type'='rule' ORDER BY i;
+-- universal-epoch-v1 | 0 | declared convention, exact by fiat
+--                          a convention: no measurement ascends it, and the row
+--                          says as much
+-- consensus          | 2 | seed-prior
+--                          an evidence law: a fit against preserved disagreement
+--                          would ascend it
+-- oplog-vs-blob-v1   | 2 | (null)
+--                          an engineering policy: no residuals, same level as
+--                          the law
+\end{Check}
+DESIGN.md's \S3 talks throughout as though every level holds evidence laws: ``a rule's performance is measured from outcomes exactly like a witness's reliability.'' That sentence is simply false of \texttt{oplog-vs-blob-v1} and of \texttt{divergence-is-data-v1}, and it is not false because those rules are bad. They are two of the most useful rows in the table. It is false because the tower was designed for one kind of rule and the database has accumulated three: laws that could be fit, policies that could not, and now one constant that must not be.
+\end{Correspondence}
+
+\section{The renormalization criterion}
+
+The tower's ascent rule, from DESIGN.md line 61, verbatim: ``Ascend a level when the current top level's residual errors are systematic rather than noise (the renormalization criterion).''
+
+The word is doing a great deal of work and it should be made to show its papers.
+
+\begin{Analogy}{Ascending the tower is a renormalization-group step}{RG has a scale parameter, a flow, and a test that decides relevance by computation; this has none of them.}
+In RG, ascending is a change of scale, and everything that makes the criterion sharp comes from that. There is a scale parameter. There is an explicit flow on a coupling space. Relevant versus irrelevant is decided by a definite transformation with a definite eigenvalue, and the answer is a computation, not a judgment. Here there is no scale parameter, no flow, no coupling space, and no test statistic. ``Systematic rather than noise'' is a hypothesis test, a hypothesis test requires a null model, and no null model exists anywhere in this system. Worse than absent: not one residual has ever been computed, because not one confidence has ever been fit, so the criterion has never had an input. Until a statistic is written down and run, the truncation level is chosen by hand, which is precisely what the tower was built to abolish.
+
+The analogy survives exactly as far as the intuition that you climb when the errors at the bottom stop looking random. It breaks the moment anyone asks what ``looking random'' means here, and it broke silently for fourteen months because nobody asked.
+\end{Analogy}
+
+\begin{Open}{Make the renormalization criterion a test}{Specify the null, name the statistic, and pre-register the threshold at which the current top level is rejected.}
+Under the current top level's model, residual outcome errors should be exchangeable across evidence types. Ascend when a named statistic rejects at a pre-registered threshold, for instance the autocorrelation of errors grouped by evidence type, or a likelihood-ratio against a level-3 model carrying one more free parameter. This requires, in order: witnesses that carry values (Chapter~\ref{ch:objects-and-witnesses}), a fitted confidence per evidence type, and residuals. Each of the three is a precondition for the next, and none of the three exists. On the previous instance the first precondition was met by one row out of 256,619; on this one \texttt{r} is empty, so the count is zero out of zero, which is a different number and the same situation. The criterion is a slogan attached to a machine with no inputs.
+\end{Open}
+
+There is a fair defense of the slogan, and it should be stated. DESIGN.md's own framing is that the architecture's ``only obligation is never to foreclose the ascent,'' and on that modest reading the criterion is not a test at all but a note about when to go look. The architecture discharges its obligation, the note is not a lie, and nothing has been foreclosed. That is true and it is also the whole complaint: an architecture that cannot foreclose an ascent, and an ascent that nobody has attempted, are observationally identical from inside the database. Nine rows across two levels cannot tell you which one you have, and neither could thirteen.
+
+\section{What this chapter claims}
+
+The mechanism is delivered. Rules are rows, level is a column, no schema change is required to write a rule about rules, the third table died twice because reification made it unnecessary, and as of the level-0 row there is finally one rule the code actually reads instead of merely obeying. Those are checkable and they check out.
+
+The tower is nearly empty. Two levels, nine rows, one of them a declared constant, zero fits, zero residuals, zero ascents, and no mechanism for retracting any of it. The four holes above are not evidence that rules-as-data is wrong. They are evidence that rules-as-data has been implemented and barely used, which is a much better position to be in than the reverse, and is worth saying plainly rather than dressing up.
+
+The rules themselves are next. There are nine of them, they are the best primary source in this book, and every one of them was written because something broke.

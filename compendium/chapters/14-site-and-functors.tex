@@ -1,0 +1,184 @@
+\chapter{The Site, Functors, Lenses, Enrichment}
+
+Section 2 of the founding design document is where this project put its mathematics. It is four pages of prose written in a day, 2026-07-03, and it makes four structural claims: that the scattered-surfaces problem is a failure of a diagram to commute, that the relationship graph is a composed profunctor, that the primitive category \textbf{Obs} is a site, and that a compiled profile is a left Kan extension. This chapter grades all four. Two of them are worth keeping, one of them is the best sentence anybody involved has written, and one of them is a word with no structure under it sitting at the foundation.
+
+The grading is not hostile. It is the only way to know which parts of \S2 can bear weight when the lab group starts writing to this database, and the answer, stated up front so that nobody has to wait for it, is: the profunctors can, the slogan can, and the site and the Kan extension cannot yet.
+
+\section{Piecemeal is precisely non-commutativity}
+
+The design document, line 37, verbatim:
+
+\begin{quote}
+``\,`Piecemeal' is precisely non-commutativity: functors from different unsynchronized domains. `Pervasive' is one site, every surface a functor out of it, sync jobs as the natural transformations keeping the diagram commuting. No surface is authoritative; the site is.''
+\end{quote}
+
+This is the best sentence in the founding document and it earns its place by doing a reframe rather than a decoration. The complaint that names and papers and calendar entries live in six systems is usually stated as a complaint about count: too many places, too much syncing. That diagnosis produces the usual cure, which is to pick a winner and migrate everything into it, and the usual cure has never worked for anybody. The categorical statement says the count is not the disease. Six surfaces are fine if they are six functors out of one domain, because then the sync jobs are natural transformations and the only question is whether the squares commute. The disease is that they are functors out of \emph{different} domains, so there is no square to commute and no sentence in which the disagreement between Gmail and Asana can even be stated as a disagreement. You cannot say that a diagram fails to commute until you have named the common domain. Naming it is the whole move.
+
+\begin{Analogy}{Surfaces are functors out of one site}{Breaks at the word ``functor'': no action on morphisms is ever exhibited, so what is on offer is a function on objects.}
+A functor needs an action on morphisms. Calling the markdown vault a functor out of \textbf{Obs} therefore requires saying what the morphisms of the vault category are, and \S2 never does, for any surface except the profunctor examples in the next section. What is actually exhibited is an assignment on objects: observations in, one file per person out. That is a function on objects with a suggestive name.
+
+The reframe survives as a diagnosis, since piecemeal really does mean no common domain, and does not survive as a construction, since there is no verified functor here. And the vault fails even the weak reading: the People vault is hand-maintained rather than compiled, so it is a surface that is not a function of the site at all, which is exactly the condition \S2 defines as the disease.
+\end{Analogy}
+
+\section{The profunctors, and this is where the math is real}
+
+One claim in \S2 is not decoration. Line 37 again: the relationship graph is ``a profunctor Person $\nrightarrow$ Person composed through co-occurrence; coauthorship is Person $\nrightarrow$ Paper composed with its opposite.''
+
+Take it seriously. A profunctor $P: A \nrightarrow B$ is a functor $A^{\mathrm{op}} \times B \to \mathbf{Set}$, and profunctors compose by a coend:
+\[
+(Q \circ P)(a,c) \;=\; \int^{b \in B} P(a,b) \times Q(b,c).
+\]
+Let $\mathrm{Auth}: \mathrm{Person} \nrightarrow \mathrm{Paper}$ send $(a,p)$ to the set of authorship witnesses connecting person $a$ to paper $p$. Then
+\[
+\mathrm{Coauth}(a,b) \;=\; \int^{p \in \mathrm{Paper}} \mathrm{Auth}(a,p) \times \mathrm{Auth}(p,b)^{\mathrm{op}},
+\]
+and in $\mathbf{Rel}$, where the coend collapses to ``there exists a $p$ with both,'' this is a self-join. Here is the view, verbatim from \verb|pg_get_viewdef| on the instance that was wiped on 2026-07-17. It is quoted in the past tense: \texttt{coauthor} was Names tissue and the stem cell does not carry it, so this view does not exist on any running database today. The argument is about the shape of the query, and the shape is unaffected by which machine it is on.
+
+\begin{lstlisting}
+SELECT a.o1 AS author_a, b.o1 AS author_b,
+       count(DISTINCT a.o2) AS n_papers
+  FROM r_active a
+  JOIN r_active b ON a.o2 = b.o2 AND a.o1 < b.o1
+ WHERE (a.d ->> 'type') = 'authored'
+   AND (b.d ->> 'type') = 'authored'
+ GROUP BY a.o1, b.o1;
+\end{lstlisting}
+
+The \verb|JOIN ... ON a.o2 = b.o2| is the coend variable $p$. The \verb|count(DISTINCT a.o2)| is the cardinality of the coend's underlying set, which is why the view returns a number of shared papers rather than a boolean: it is counting the elements of $\int^p$. This is not a metaphor about SQL. The composed profunctor and the self-join are the same computation written twice.
+
+\begin{Correspondence}{\texttt{coauthor} is a composed profunctor}{Compute the coend for one three-author paper by hand and compare it to the view restricted to those authors; they agree, because the join is the coend.}
+The coend over the one-object diagram is the product of the two witness sets, so both the pairs and the counts should match. Running it needs a corpus with authorship in it, which means the archived dump: the live instance has no papers, no \texttt{authored} witnesses, and no \texttt{coauthor} view to restrict.
+\end{Correspondence}
+
+Two things are worth saying about this and then we move on. First, the doc and the code agreed here, which is rare enough in this book that it should be marked when it happens. \S2 said the relationship graph is a composed profunctor and never materialized; the project's own rules say derived structure is computed, never materialized; and \verb|coauthor| and \verb|co_attended| were computed on demand over \verb|r_active|. Three sources, one answer. The agreement is now historical, since two of the three sources are a dump and a deleted view, and it counted when it happened. Second, the reason this one works is that it is the only place in \S2 where the morphisms were named. $\mathrm{Auth}$ has a definite domain, a definite codomain, and definite sets of witnesses between them. Everywhere the doc names the morphisms, the mathematics is real; everywhere it does not, the mathematics is a word.
+
+\section{``The site,'' which has no coverage}
+
+The word \emph{site} appears four times in the design document. It is the heading of \S2, it is the subject of ``one site, every surface a functor out of it,'' it is the object of ``a change of enrichment on the one site,'' and it is the name of Phase 0. It is load-bearing in every one of those sentences.
+
+A site is a category equipped with a coverage: a specification, for each object, of which families of maps into it count as covering it, satisfying stability under pullback and a locality condition. The coverage is the entire point. It is what lets you say that something defined locally on a covering family, and agreeing on overlaps, glues to something defined globally. Without a coverage there is no descent, no gluing, no sheafification, and no sheaves. There is a category.
+
+No coverage is specified anywhere in the corpus. Nothing sheaf-theoretic is ever done. There is no descent statement, no gluing lemma, no restriction map, no compatibility condition, and no overlap. This is the design's most serious unearned word and it sits at the foundation, in the heading.
+
+It is worse than that, and the extra badness is instructive rather than embarrassing. \textbf{Obs} is not even quite a category. \S2 gives it objects (observations: an email, a bib entry, a watch recording, a remark from Chandralekha) and never gives it a composition law or identities. And the thing that ``enters as morphisms'' is not a morphism: line 21 says an identification witness is a span $o_1 \leftarrow w \to o_2$. A span is a diagram, not an arrow. Spans compose by pullback, which requires \textbf{Obs} to have pullbacks, which is never asserted and is not obvious for a category of emails, and the composition is associative only up to canonical isomorphism, so what you get is $\mathrm{Span}(\mathbf{Obs})$, a bicategory. The doc says ``Identity enters as morphisms'' and then hands you a bicategory it does not mention.
+
+\begin{Open}{Is \textbf{Obs} actually a site?}{Exhibit a coverage, verify its two axioms, and prove one nontrivial descent statement.}
+None of the three has been attempted. There is a natural candidate for the first: a family of observations covers an observation when the witnesses attached to the family jointly determine it. The second is stability under pullback and locality, which cannot even be stated until somebody exhibits the pullbacks. The third wants something with content, for instance that a compiled profile is determined by its restrictions to a covering family, with the agreement-on-overlaps condition made precise.
+
+Absent all of that, ``site'' is a name and not a structure, and every sentence in \S2 that leans on it is leaning on a noun.
+\end{Open}
+
+The code, meanwhile, did something the doc did not say, and did it better. The apex $w$ of the span became \verb|r.i|, the reified arrow identity: a witness is a row in \verb|r|, and a statement about a witness is another row pointing at that row's \verb|i|. That is reification, and it converts $\mathrm{Span}(\mathbf{Obs})$-shaped ambitions into an ordinary directed graph whose edges can be named. It is defensible, it is what runs, and it is not what \S2 describes. Chapter 7 has the schema; the point here is only that the divergence runs in the code's favor.
+
+\section{Profiles as left Kan extensions}
+
+Line 33, verbatim and in full, because it is the most quotable and most dangerous sentence in the document:
+
+\begin{quote}
+``A profile (markdown dossier, SQL row, graph node) is the left Kan extension of observation data along \texttt{Obs -> Person}: the colimit of everything observed in that person's component, with an LLM as the colimit-taking machine for unstructured content. Universal property as correctness spec: the profile contains exactly what the observations force, and any other summary factors through it.''
+\end{quote}
+
+The first half is real and is also empty, which is an unusual combination worth being precise about. The formula is
+\[
+(\mathrm{Lan}_K F)(p) \;=\; \operatorname*{colim}_{K \downarrow p} F,
+\]
+and for $K$ the functor sending an observation to its connected component, the comma category $K \downarrow p$ is the fiber over $p$: exactly the observations in that person's component. So the left Kan extension is: gather the fiber. That is arithmetically correct. It is also everything the machinery buys at this level of structure, because in a category whose only structure is which component you are in, the colimit over a discrete fiber is a coproduct, and a coproduct of a bag of emails is the bag of emails. The categorical apparatus is doing no work. \verb|component()| already gathers the fiber, in twelve lines of recursive SQL, and calling the result a Lan adds a name.
+
+Then the second half, and the second half is where it falls apart.
+
+\begin{Analogy}{Profiles as left Kan extensions, with an LLM as the colimit-taking machine}{Breaks at every clause of the universal property: the compiler is nondeterministic, non-associative, and uncontrollably lossy.}
+A colimit is unique up to unique isomorphism, is functorial in the diagram, and is natural. LLM compilation is none of those. It is nondeterministic, so run the compiler twice on Chandralekha's component and you get two profiles, which means the ``colimit'' is not well defined as a function, let alone universal. It is non-associative: summarize the 2019 emails, then merge that with the 2020 emails, and you do not get what you get from summarizing 2019 and 2020 together, because the intermediate summary already threw away what the second batch would have made salient. And it is lossy in an uncontrolled way, which is a different failure from lossy in a controlled way: a coproduct forgets nothing, a quotient forgets exactly what you quotient by, and an LLM forgets whatever it forgets.
+
+The analogy survives precisely as far as ``gather the fiber,'' which is the part that needs no LLM. Universality, factorization, and naturality are unearned, and the whole thing breaks the instant you ask what ``any other summary factors through it'' means for two markdown files. There is no target category in which that sentence has a truth value.
+\end{Analogy}
+
+The doc's escape hatch is that it calls the universal property a \emph{spec} rather than a theorem, which is the charitable reading and is fair. But a spec you cannot test is a wish. Here is how to make it testable, and this is the best research pointer available anywhere in the corpus, including in the doc that failed to state it.
+
+\begin{Open}{Can the universal property be made testable?}{Give the target real structure: read a profile as the set of claims it entails, ordered by entailment.}
+Take a profile not as prose but as the set of atomic extractable claims it entails. Then ``factors through'' means ``is entailed by,'' and the Lan property reads: the compiled profile entails exactly what the observations entail, no more and no less. Both halves are measurable, by a claim-extraction eval against a held-out set of components with hand-labeled claim sets.
+
+\begin{Check}
+-- no more  =  soundness.    Its violation has a name: hallucination.
+-- no less  =  completeness. Its violation has a name: omission.
+\end{Check}
+
+That converts the whole paragraph from analogy to correspondence, or refutes it. It has never been run.
+\end{Open}
+
+Notice the asymmetry that the doc's phrase ``correctness spec'' hides. ``Exactly what the observations force'' is a conjunction of soundness and completeness, and an LLM compiler fails both, in different ways, for different reasons, at different rates. Folding them into one clause makes them look like one property with one fix. They are two properties with two evals.
+
+\section{Two cheap demolitions}
+
+\subsection*{Fuzzy recall as a change of enrichment}
+
+Line 45 says embedding-based memory is ``the same category enriched over the Lawvere metric ($[0,\infty]$, $\geq$, $+$): hom-objects become distances\ldots{} Not a separate system: a change of enrichment on the one site.''
+
+The citation is real and is correctly stated. Lawvere's 1973 observation is that a generalized metric space \emph{is} a category enriched over the monoidal poset $([0,\infty], \geq, +)$: objects are points, the hom-object $\hom(a,b)$ is the distance, the unit law is $d(a,a) = 0$, and the composition map is the triangle inequality, which is a morphism $d(a,b) + d(b,c) \geq d(a,c)$ precisely because the order is $\geq$ and not $\leq$. That is a genuinely beautiful fact and it is not ours.
+
+\begin{Analogy}{Fuzzy recall is a change of enrichment over the Lawvere metric}{Breaks twice, and the second is fatal: cosine similarity is not a metric, and there is no monoidal functor to change base along.}
+First, what the retrieval system computes is cosine similarity, and $1 - \cos\theta$ is symmetric and is not a metric. The symmetry throws away asymmetry, which is the entire reason Lawvere's setting is interesting, since the cost of getting from $a$ to $b$ need not equal the cost of getting back. And the triangle-inequality failure means the composition map of the enriched category does not exist. No composition, no enriched category.
+
+Second and decisively, a change of enrichment is base change along a monoidal functor $\mathcal{V} \to \mathcal{W}$. There is no monoidal functor $\mathbf{Set} \to [0,\infty]$ to change base along here, and the doc does not offer one. So this is not a change of enrichment. It is a second, independently computed structure over the same corpus, obtained by running an embedding model over the raw content and indexing the vectors. ``The same data, a different structure'' is true and mundane. ``A change of enrichment'' is false and glamorous.
+\end{Analogy}
+
+The one durable claim in that paragraph needs no category theory at all: an improved embedding model improves recall over unchanged data, because the raw signals were kept. \tier{corr} Checkable by swapping the embedding model and re-running a fixed query set against a fixed corpus. It is also, note, the same claim as the doc's best line elsewhere (``witnesses keep their raw signals, so an improved resolver re-runs over the past''), and it is true for the same reason, and neither statement of it required an enrichment.
+
+\subsection*{Time as a functor from the poset}
+
+Line 49: ``The whole system is a functor from the poset of times: nothing is overwritten, because morphisms in time are not invertible.''
+
+The ``because'' runs backwards. That $\leq$ is not invertible in a poset does not cause anything to be stored append-only; the Postgres in front of you would happily let you \verb|UPDATE| a row while $\leq$ remained just as non-invertible as before. Append-only is the hypothesis. Functoriality is the consequence: because nothing is overwritten, the assignment $t \mapsto (\text{state at } t)$ is defined for every $t$, and $s \leq t$ maps to an inclusion, and that is a functor. Read in the correct direction the claim is stronger and it is testable.
+
+\begin{Correspondence}{The state at any past $t$ is recoverable}{Reconstruct the active set as of a chosen past date and compare it to the present one.}
+The functor $t \mapsto (\text{state at } t)$ is defined on all of $T$, not only at the present, and the way to see that is to rebuild an old state from rows that are still there. The recipe below is the definition of \texttt{r\_active} with every clause bounded by the target time: rows born at or before it, outcomes resolved by latest-wins as of it. This is also the reason a recalibrated resolver can be re-run over the past.
+
+One caveat on running it, and it is the whole of Chapter 12's complaint in one word: the live instance's $T$ is about a day long. The query below is correct and returns zero, because \texttt{r} is empty and every past $t$ is either after the big bang and empty or before it and not a time this instance has. The version of this check that demonstrates anything wants a corpus, so it wants the archived dump, where crossing the 2026-07-04 email ingest moves the count by six figures.
+\begin{Check}
+-- r_active as of any past t. Substitute the date in both places.
+WITH asof AS (SELECT TIMESTAMPTZ '2026-07-03' AS t0)
+SELECT count(*) FROM r, asof
+WHERE r.t <= asof.t0
+  AND r.d->>'type' <> 'outcome'
+  AND COALESCE((SELECT rx.d->>'verdict' FROM r rx
+                WHERE rx.d->>'type' = 'outcome'
+                  AND (rx.d->>'of')::UUID = r.i
+                  AND rx.t <= asof.t0
+                ORDER BY rx.t DESC, rx.i DESC LIMIT 1), '') <> 'retracted';
+-- Then the same query with t0 = '2026-07-05', after the ingest.
+SELECT count(*) FROM r_active;   -- the present, for comparison
+-- The cast is ::UUID. It was ::BIGINT until the identity fix; against the live
+-- schema the old cast raises rather than lying, which is the good kind of break.
+\end{Check}
+\end{Correspondence}
+
+\subsection*{Lenses, which are not here}
+
+The chapter's title promises lenses and the design document promises them at line 41: get is the compiler, put translates a view edit back into events, and ``lens laws as the consistency spec.'' They are not treated here, for two reasons. There is nothing running to treat: the write-back lens is Phase 3, the profile compiler is not built, so the lens has no \texttt{get}, let alone a \texttt{put}. And the interesting thing about it is not a fact about the site but a fact about evidence, namely that a hand-edit is a witness and a witness can lose to older, higher-confidence witnesses under the consensus law. That is why PutGet fails by design rather than by accident, and it belongs where the consensus law and the calibration program are, which is Chapter 17.
+
+\section{The receipts}
+
+The design document has two halves, written a day apart, and they have very different track records.
+
+\S5, added 2026-07-04, is the control-by-mutability taxonomy and the trust discussion. Four of its ideas are now rule rows in the live database: \rulerow{boundary-ref-v1}, \rulerow{snapshot-on-observation-v1}, \rulerow{source-as-instrument-v1}, \rulerow{staleness-decay-v1}. Four for four.
+
+\S2, the categorical apparatus of this chapter, has produced zero rule rows. Not one of its constructions is instantiated, tested, or enforced anywhere in the running system. The one part of it that is real, the profunctor composition, is real because it was already a SQL view before it was called a profunctor.
+
+\begin{Correspondence}{\S5 turned into code and \S2 stayed prose}{List the rule rows, trace each name back to the section of DESIGN.md that proposed it, and grep the genome for \S2's vocabulary.}
+Four names trace to \S5. No name traces to \S2. The vocabulary check is the same measurement from the other end: the words \S2 leans on do not appear in the thing that runs, in the sense \S2 means them.
+\begin{Check}
+SELECT j->>'name' FROM o WHERE j->>'type' = 'rule' ORDER BY i;
+-- boundary-ref-v1, snapshot-on-observation-v1, source-as-instrument-v1,
+-- staleness-decay-v1 all trace to DESIGN.md section 5. None traces to section 2.
+
+$ grep -iE 'site|coverage|sheaf|kan|colimit|enrichment|lens' stem-cell.sql
+-- four hits, all of them ordinary English: "websites" in snapshot-on-observation-v1,
+-- and "coverage window" in source-as-instrument-v1 and window-censoring-v1, which is
+-- a censoring window and not a Grothendieck coverage. Zero hits for sheaf, Kan,
+-- colimit, enrichment, and lens.
+
+$ grep -i 'profunctor' stem-cell.sql   -- no hits
+\end{Check}
+Read that last line carefully, because it moved for a reason that has nothing to do with this chapter's argument and everything to do with it. Until 2026-07-17 the word \emph{profunctor} appeared exactly once in the running schema, in a comment above the \texttt{coauthor} view, describing a join that was written before the word was applied to it. The stem cell dropped \texttt{coauthor} as Names tissue, on the grounds that a view about papers and authorship is not part of a substrate that does not know what a paper is. The grounds are right. The side effect is that the single occurrence of \S2's vocabulary in the code left the building with it, and \S2's score against the genome is now zero out of zero rather than one out of many. That is a worse showing arrived at by a decision no one made about it.
+\end{Correspondence}
+
+That fact should govern how much weight a reader gives \S2, and it is the most useful thing this book can say about its own founding document. It is not that the categorical framing is wrong. ``Piecemeal is precisely non-commutativity'' is right, and the profunctor is right, and ``store the groupoid, not the skeleton'' is right and is Chapter 13's. It is that \S2's hit rate is a measurement, it has been taken, and the number is zero. The prettiest paragraphs in the document are the ones that produced nothing, and the plain 2$\times$2 grid in \S5 predicted, twelve days early, the answer to a question about instrument traces that nobody had asked yet. When the categorical language names the morphisms, it earns its keep. When it names only the objects, it is a label on a box that has not been opened.

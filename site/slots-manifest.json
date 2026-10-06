@@ -1,0 +1,810 @@
+{
+ "labBackupStore": {
+  "default": "the nightly backup",
+  "arity": 0
+ },
+ "labBlobFormat": {
+  "default": "your blob format",
+  "arity": 0
+ },
+ "labBlobFormatExt": {
+  "default": "bin",
+  "arity": 0
+ },
+ "labBlobMediaType": {
+  "default": "application/octet-stream",
+  "arity": 0
+ },
+ "labCarrier": {
+  "default": "carrier",
+  "arity": 0
+ },
+ "labColdComponent": {
+  "default": "cold-stage",
+  "arity": 0
+ },
+ "labColdCondition": {
+  "default": "at base",
+  "arity": 0
+ },
+ "labColdId": {
+  "default": "cryostat",
+  "arity": 0
+ },
+ "labColdOnset": {
+  "default": "reached base",
+  "arity": 0
+ },
+ "labColdRun": {
+  "default": "run",
+  "arity": 0
+ },
+ "labColdSystem": {
+  "default": "your cryostat",
+  "arity": 0
+ },
+ "labColdSystemAlt": {
+  "default": "the second system",
+  "arity": 0
+ },
+ "labColdSystemColloquial": {
+  "default": "the cryostat",
+  "arity": 0
+ },
+ "labColdSystemShort": {
+  "default": "cryostat",
+  "arity": 0
+ },
+ "labColdTemp": {
+  "default": "base temperature",
+  "arity": 0
+ },
+ "labColleague": {
+  "default": "a collaborator",
+  "arity": 0
+ },
+ "labColleagueAddr": {
+  "default": "\\texttt{collaborator@example.edu}",
+  "arity": 0
+ },
+ "labColleagueComponentSize": {
+  "default": "N",
+  "arity": 0
+ },
+ "labColleagueDesc": {
+  "default": "has a long history in the corpus and is well known to the person who built this database",
+  "arity": 0
+ },
+ "labColleagueNameEdges": {
+  "default": "N",
+  "arity": 0
+ },
+ "labColleagueNoun": {
+  "default": "person",
+  "arity": 0
+ },
+ "labCorpus": {
+  "default": "your corpus",
+  "arity": 0
+ },
+ "labDAQ": {
+  "default": "your DAQ software",
+  "arity": 0
+ },
+ "labDevice": {
+  "default": "instrument",
+  "arity": 0
+ },
+ "labDeviceGeometry": {
+  "default": "device geometry",
+  "arity": 0
+ },
+ "labDeviceModel": {
+  "default": "your model",
+  "arity": 0
+ },
+ "labDeviceSerial": {
+  "default": "SERIAL-0001",
+  "arity": 0
+ },
+ "labDomain": {
+  "default": "your domain",
+  "arity": 0
+ },
+ "labDuration": {
+  "default": "many months",
+  "arity": 0
+ },
+ "labEmail": {
+  "default": "collaborator",
+  "arity": 0
+ },
+ "labFabChamber": {
+  "default": "growth chamber",
+  "arity": 0
+ },
+ "labFabLog": {
+  "default": "fabrication logs",
+  "arity": 0
+ },
+ "labFigure": {
+  "default": "a measurement curve",
+  "arity": 0
+ },
+ "labFileExt": {
+  "default": "dat",
+  "arity": 0
+ },
+ "labFileFormat": {
+  "default": "your file format",
+  "arity": 0
+ },
+ "labFridge": {
+  "default": "cryostat",
+  "arity": 0
+ },
+ "labGate": {
+  "default": "control parameter",
+  "arity": 0
+ },
+ "labGateBeyond": {
+  "default": "beyond the rated range",
+  "arity": 0
+ },
+ "labGateRange": {
+  "default": "its rated range",
+  "arity": 0
+ },
+ "labGrowthLog": {
+  "default": "growth log",
+  "arity": 0
+ },
+ "labHost": {
+  "default": "rig-01",
+  "arity": 0
+ },
+ "labImaging": {
+  "default": "an image",
+  "arity": 0
+ },
+ "labInstance": {
+  "default": "your first instance",
+  "arity": 0
+ },
+ "labInstrument": {
+  "default": "your instrument",
+  "arity": 0
+ },
+ "labInstrumentShort": {
+  "default": "instrument",
+  "arity": 0
+ },
+ "labInstrumentVendor": {
+  "default": "your vendor",
+  "arity": 0
+ },
+ "labLineage": {
+  "default": "your lineage",
+  "arity": 0
+ },
+ "labLineageActive": {
+  "default": "most of them",
+  "arity": 0
+ },
+ "labLineageArchiveStart": {
+  "default": "the archive start",
+  "arity": 0
+ },
+ "labLineageAssertSpan": {
+  "default": "two days",
+  "arity": 0
+ },
+ "labLineageBlobExample": {
+  "default": "A large raw acquisition is many points; the assertion that someone took it on a particular sample is one row.",
+  "arity": 0
+ },
+ "labLineageBlobSchema": {
+  "default": "blob",
+  "arity": 0
+ },
+ "labLineageBlobSize": {
+  "default": "many gigabytes",
+  "arity": 0
+ },
+ "labLineageBlobUnit": {
+  "default": "blob rows",
+  "arity": 0
+ },
+ "labLineageBornOf": {
+  "default": "the owner's source records",
+  "arity": 0
+ },
+ "labLineageCalendars": {
+  "default": "the calendars",
+  "arity": 0
+ },
+ "labLineageChunkSpan": {
+  "default": "a one-week span",
+  "arity": 0
+ },
+ "labLineageCleanWrong": {
+  "default": "a clean but incomplete component that has lost the person's other addresses",
+  "arity": 0
+ },
+ "labLineageCoauthorJoin": {
+  "default": "The \\texttt{coauthor} view and the whole cross-source join, which is a bridge between two sources you do not have.",
+  "arity": 0
+ },
+ "labLineageComponentTotal": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageConsensusRows": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageContested": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageContrast": {
+  "default": "years of records never settled the identities",
+  "arity": 0
+ },
+ "labLineageCorpus": {
+  "default": "a large archive of records with their attachments",
+  "arity": 0
+ },
+ "labLineageCorrectionSpelling": {
+  "default": "Some corrections were tagged one way and one was tagged another, and that one is the subject of section~\\ref{sec:consensus-view-fix}.",
+  "arity": 0
+ },
+ "labLineageDominantFraction": {
+  "default": "Most",
+  "arity": 0
+ },
+ "labLineageDominantKind": {
+  "default": "your primary source",
+  "arity": 0
+ },
+ "labLineageDominantObject": {
+  "default": "primary-record",
+  "arity": 0
+ },
+ "labLineageDominantObjectDef": {
+  "default": "a single observed sighting",
+  "arity": 0
+ },
+ "labLineageDump": {
+  "default": "a dump file",
+  "arity": 0
+ },
+ "labLineageDumpFile": {
+  "default": "the pre-wipe dump",
+  "arity": 0
+ },
+ "labLineageDumpPath": {
+  "default": "your backup directory",
+  "arity": 0
+ },
+ "labLineageDupObjA": {
+  "default": "an object id",
+  "arity": 0
+ },
+ "labLineageDupObjB": {
+  "default": "another object id",
+  "arity": 0
+ },
+ "labLineageDupRel": {
+  "default": "a relation id",
+  "arity": 0
+ },
+ "labLineageFailure": {
+  "default": "a single shared identifier carrying many names fused most of a corpus into one nonexistent entity",
+  "arity": 0
+ },
+ "labLineageFixWindow": {
+  "default": "a few hours",
+  "arity": 0
+ },
+ "labLineageGame": {
+  "default": "the recall game built on top of this instance",
+  "arity": 0
+ },
+ "labLineageGameDate": {
+  "default": "one day",
+  "arity": 0
+ },
+ "labLineageGarbage": {
+  "default": "two shared service addresses that had once carried the person's display name",
+  "arity": 0
+ },
+ "labLineageGraphSize": {
+  "default": "tens of megabytes",
+  "arity": 0
+ },
+ "labLineageGraphTotalSize": {
+  "default": "a fraction of the whole",
+  "arity": 0
+ },
+ "labLineageGrewWhen": {
+  "default": "over a short burst of work",
+  "arity": 0
+ },
+ "labLineageHandCount": {
+  "default": "a handful",
+  "arity": 0
+ },
+ "labLineageIdentityTable": {
+  "default": "%\nprimary@example.edu & N & N \\\\\nalt@example.edu & N & 0 \\\\\n\\midrule\ntotal & N & N \\\\",
+  "arity": 1
+ },
+ "labLineageKindTable": {
+  "default": "%\nyour primary record kind & N \\\\\na second kind & N \\\\\na third kind & N \\\\",
+  "arity": 1
+ },
+ "labLineageKindTail": {
+  "default": "a handful of one- and two-of-a-kind object kinds",
+  "arity": 0
+ },
+ "labLineageLevelOne": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageLifetime": {
+  "default": "a short life",
+  "arity": 0
+ },
+ "labLineageMailboxBlowup": {
+  "default": "thousands of",
+  "arity": 0
+ },
+ "labLineageMailboxDate": {
+  "default": "one day",
+  "arity": 0
+ },
+ "labLineageMedium": {
+  "default": "records",
+  "arity": 0
+ },
+ "labLineageMessages": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageMessagesRound": {
+  "default": "hundreds of thousands",
+  "arity": 0
+ },
+ "labLineageName": {
+  "default": "your first lineage",
+  "arity": 0
+ },
+ "labLineageNameOrigin": {
+  "default": "after whatever the project was called before",
+  "arity": 0
+ },
+ "labLineageNewInstanceId": {
+  "default": "a fresh instance id",
+  "arity": 0
+ },
+ "labLineageOSize": {
+  "default": "tens of megabytes",
+  "arity": 0
+ },
+ "labLineageObjects": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageOutcomes": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineagePapersRound": {
+  "default": "several thousand",
+  "arity": 0
+ },
+ "labLineagePeerMachine": {
+  "default": "A second machine",
+  "arity": 0
+ },
+ "labLineagePlace": {
+  "default": "your city",
+  "arity": 0
+ },
+ "labLineageRelBreakdown": {
+  "default": "your dominant relation types in descending count, then a long tail in the single digits",
+  "arity": 0
+ },
+ "labLineageRelations": {
+  "default": "M",
+  "arity": 0
+ },
+ "labLineageRetracted": {
+  "default": "many of them",
+  "arity": 0
+ },
+ "labLineageRetractedPct": {
+  "default": "a large fraction",
+  "arity": 0
+ },
+ "labLineageRetractedRows": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageRule": {
+  "default": "a tissue rule",
+  "arity": 0
+ },
+ "labLineageRuleRowA": {
+  "default": "an object id",
+  "arity": 0
+ },
+ "labLineageRuleRowB": {
+  "default": "another object id",
+  "arity": 0
+ },
+ "labLineageRuleRows": {
+  "default": "several",
+  "arity": 0
+ },
+ "labLineageSameActive": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageSameRaw": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageSameRetracted": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageScale": {
+  "default": "hundreds of thousands of records",
+  "arity": 0
+ },
+ "labLineageSeatAddr": {
+  "default": "primary address",
+  "arity": 0
+ },
+ "labLineageSeatCount": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageSeatYears": {
+  "default": "many years",
+  "arity": 0
+ },
+ "labLineageSharedMailboxPath": {
+  "default": "a placeholder identifier and a set of shared service addresses that carry whoever's name is attached",
+  "arity": 0
+ },
+ "labLineageSize": {
+  "default": "a few gigabytes",
+  "arity": 0
+ },
+ "labLineageSource": {
+  "default": "the source records",
+  "arity": 0
+ },
+ "labLineageSourceCount": {
+  "default": "several",
+  "arity": 0
+ },
+ "labLineageSourceRaw": {
+  "default": "your raw source tree",
+  "arity": 0
+ },
+ "labLineageSources": {
+  "default": "your primary sources",
+  "arity": 0
+ },
+ "labLineageSourcesIntact": {
+  "default": "The raw sources are still where they always were, unchanged.",
+  "arity": 0
+ },
+ "labLineageSourcesStillThere": {
+  "default": "They are still in your raw source tree.",
+  "arity": 0
+ },
+ "labLineageStagedCount": {
+  "default": "many records",
+  "arity": 0
+ },
+ "labLineageStagedSource": {
+  "default": "one source",
+  "arity": 0
+ },
+ "labLineageStagingSize": {
+  "default": "some tens of megabytes",
+  "arity": 0
+ },
+ "labLineageThreeSources": {
+  "default": "your primary sources",
+  "arity": 0
+ },
+ "labLineageTissueRuleName": {
+  "default": "a tissue rule",
+  "arity": 0
+ },
+ "labLineageTissueRuleWord": {
+  "default": "shared identifier",
+  "arity": 0
+ },
+ "labLineageTypeRefs": {
+  "default": "N",
+  "arity": 0
+ },
+ "labLineageVariantList": {
+  "default": "many display-name variants of one address, casing and punctuation and typos preserved, some of them not even a name",
+  "arity": 0
+ },
+ "labLineageWindowEdge": {
+  "default": "the year before the archive",
+  "arity": 0
+ },
+ "labLineageWindowLabExample": {
+  "default": "the same defect is waiting in every lab lineage that reports a first occurrence, when the record of it starts only just before that date.",
+  "arity": 0
+ },
+ "labLineageWindowSubject": {
+  "default": "an old contact",
+  "arity": 0
+ },
+ "labLineageWindowYear": {
+  "default": "a given year",
+  "arity": 0
+ },
+ "labLineageWipeDate": {
+  "default": "its wipe date",
+  "arity": 0
+ },
+ "labLineageWitnessEvidence": {
+  "default": "domain-specific hand-asserted evidence strings",
+  "arity": 0
+ },
+ "labLineageWitnessKinds": {
+  "default": "a few dominant witness kinds, one of which joins two of your sources",
+  "arity": 0
+ },
+ "labLocation": {
+  "default": "the lab",
+  "arity": 0
+ },
+ "labLockin": {
+  "default": "instrument",
+  "arity": 0
+ },
+ "labLog": {
+  "default": "a run log",
+  "arity": 0
+ },
+ "labMagnet": {
+  "default": "your magnet",
+  "arity": 0
+ },
+ "labMagnetReadout": {
+  "default": "field readback",
+  "arity": 0
+ },
+ "labMagnetShort": {
+  "default": "magnet",
+  "arity": 0
+ },
+ "labMailCorpus": {
+  "default": "a large record corpus spanning many years",
+  "arity": 0
+ },
+ "labMailDomain": {
+  "default": "example.edu",
+  "arity": 0
+ },
+ "labMaterialShort": {
+  "default": "your material",
+  "arity": 0
+ },
+ "labMaterialWord": {
+  "default": "material",
+  "arity": 0
+ },
+ "labMeasurement": {
+  "default": "your measured quantity",
+  "arity": 0
+ },
+ "labMediaType": {
+  "default": "application/octet-stream",
+  "arity": 0
+ },
+ "labOwner": {
+  "default": "the owner",
+  "arity": 0
+ },
+ "labOwnerAddr": {
+  "default": "\\texttt{pi@example.edu}",
+  "arity": 0
+ },
+ "labPI": {
+  "default": "the PI",
+  "arity": 0
+ },
+ "labPIHandle": {
+  "default": "pi",
+  "arity": 0
+ },
+ "labPedagogyDoc": {
+  "default": "a pedagogical document",
+  "arity": 0
+ },
+ "labPedagogyEnd": {
+  "default": "practical application",
+  "arity": 0
+ },
+ "labPedagogyLines": {
+  "default": "several hundred",
+  "arity": 0
+ },
+ "labPerson": {
+  "default": "a collaborator",
+  "arity": 0
+ },
+ "labPlaceholderLabel": {
+  "default": "Image0001",
+  "arity": 0
+ },
+ "labPriorDocA": {
+  "default": "an earlier draft",
+  "arity": 0
+ },
+ "labPriorDocB": {
+  "default": "a second draft",
+  "arity": 0
+ },
+ "labPriorDrafts": {
+  "default": "earlier drafts",
+  "arity": 0
+ },
+ "labPriorField": {
+  "default": "identifier",
+  "arity": 0
+ },
+ "labPriorUnit": {
+  "default": "record",
+  "arity": 0
+ },
+ "labPropertyDistinct": {
+  "default": "the quantities you will actually publish",
+  "arity": 0
+ },
+ "labPropertyShared": {
+  "default": "the properties shared across a batch",
+  "arity": 0
+ },
+ "labReadingA": {
+  "default": "1.00 V",
+  "arity": 0
+ },
+ "labReadingB": {
+  "default": "1.02 V",
+  "arity": 0
+ },
+ "labReadout": {
+  "default": "the instrument output",
+  "arity": 0
+ },
+ "labRun": {
+  "default": "run",
+  "arity": 0
+ },
+ "labRunFailure": {
+  "default": "The measurement was misconfigured and the reading is wrong",
+  "arity": 0
+ },
+ "labRunFailureReason": {
+  "default": "measurement misconfigured",
+  "arity": 0
+ },
+ "labRuns": {
+  "default": "runs",
+  "arity": 0
+ },
+ "labSample": {
+  "default": "SAMPLE-0001",
+  "arity": 0
+ },
+ "labSampleAlt": {
+  "default": "0001",
+  "arity": 0
+ },
+ "labSampleAltShort": {
+  "default": "0002",
+  "arity": 0
+ },
+ "labSampleCarrier": {
+  "default": "carrier",
+  "arity": 0
+ },
+ "labSampleChip": {
+  "default": "0001-2",
+  "arity": 0
+ },
+ "labSampleClass": {
+  "default": "devices",
+  "arity": 0
+ },
+ "labSampleHandLabel": {
+  "default": "sample 0001",
+  "arity": 0
+ },
+ "labSampleLoss": {
+  "default": "was lost",
+  "arity": 0
+ },
+ "labSampleLower": {
+  "default": "sample-0001",
+  "arity": 0
+ },
+ "labSampleNoun": {
+  "default": "device",
+  "arity": 0
+ },
+ "labSampleNounPl": {
+  "default": "devices",
+  "arity": 0
+ },
+ "labSamplePostbond": {
+  "default": "0001-2\\_postbond",
+  "arity": 0
+ },
+ "labSampleScanLabel": {
+  "default": "0001\\_scan\\_01",
+  "arity": 0
+ },
+ "labSampleShort": {
+  "default": "0001",
+  "arity": 0
+ },
+ "labSampleUnrelated": {
+  "default": "SAMPLE-9999",
+  "arity": 0
+ },
+ "labSampleWord": {
+  "default": "sample",
+  "arity": 0
+ },
+ "labScalar": {
+  "default": "a scalar quantity",
+  "arity": 0
+ },
+ "labScalarAlt": {
+  "default": "another scalar quantity",
+  "arity": 0
+ },
+ "labScalarAltTwo": {
+  "default": "a third scalar quantity",
+  "arity": 0
+ },
+ "labScan": {
+  "default": "scan",
+  "arity": 0
+ },
+ "labScratchMachine": {
+  "default": "a scratch machine",
+  "arity": 0
+ },
+ "labSweepParam": {
+  "default": "the swept parameter",
+  "arity": 0
+ },
+ "labVenue": {
+  "default": "your institution",
+  "arity": 0
+ },
+ "labVenueAlt": {
+  "default": "another venue",
+  "arity": 0
+ },
+ "labVenueCity": {
+  "default": "your city",
+  "arity": 0
+ }
+}

@@ -1,0 +1,367 @@
+\chapter{Objects, Witnesses, Branches, Time}\label{ch:objects-and-witnesses}
+
+The previous chapter printed the two tables. This one prints everything built on top of them. On 2026-07-17 that list got shorter and then longer for a reason worth stating at the top: the live instance was wiped and reborn from the stem cell, so what is running now is the genome plus the instrument lineage, and nothing else. Every view and function that was Names tissue is gone. Every view and function that was typed into a psql session and never written down is also gone, because there is no session history to carry forward. There is no application layer, no ORM, no stored procedure library, no service. If you have read the two files and you read this chapter, you have read the system.
+
+The list, from the live database on 2026-07-17, a few minutes after its big bang:
+
+\begin{verbatim}
+views:      blobs, consensus, r_active
+
+functions:  uuidv7()                              -> uuid
+            component(text, text, real)           -> table(uuid)
+            realize(uuid)                         -> uuid
+            t_universe(timestamptz)               -> numeric
+            instance_id()                         -> uuid
+            age(timestamptz)                      -> numeric
+            uuid_from_sha256(text)                -> uuid
+            blob(text, jsonb)                     -> uuid
+            blob_seen_at(text, text, text)        -> uuid
+            retract(uuid, text)                   -> uuid
+
+o: 10 rows.  r: 0 rows.
+\end{verbatim}
+
+Three views and ten functions, over ten objects and zero relations. The earlier draft of this chapter counted four views and two functions and spent its length on \texttt{coauthor} and \texttt{co\_attended}. \textbf{Neither view exists.} \texttt{coauthor} was removed from the genome deliberately, and the stem cell says why in its own header: it is pure papers and authorship, which is Names tissue and not substrate. \texttt{co\_attended} was never in any file at all; it lived only in the live database, and the wipe took it. So the most useful sentence in the old draft, that the checked-in schema was not the deployed schema and the drift ran live-ahead-of-files, is no longer true. It was not fixed by writing the view down. It was resolved by ending the universe the view lived in, which is a different thing and a worse precedent, and the next section but one is about the cost of that move.
+
+The value of this chapter is still that the list is complete. Every claim anyone makes about what Yoneda computes is a claim about thirteen objects, and all thirteen are named above.
+
+\section{r\_active, referenced not repeated}
+
+\texttt{r\_active} was printed and argued in Chapter 4. It filters out outcome rows and any relation whose latest outcome is a retraction. It is the strongest thing in the system, and every computed view now builds on it: \texttt{consensus} does, \texttt{blobs} does in both of its lateral joins, \texttt{component()} does in its recursive step. Until 2026-07-17 one view did not, and that view was \texttt{consensus}, and the rest of this section is about how that ended.
+
+The one thing worth adding here is that \texttt{r\_active} currently admits zero rows out of zero, and everything downstream of it therefore returns nothing. That is not a defect, it is an empty universe. It does mean that no claim in this chapter about \texttt{r\_active} behaving correctly at scale is being made about the running instance. It is being made about the archived one.
+
+\section{consensus, and an ordering artifact that is now fixed}
+
+Here is the live definition, unedited:
+
+\begin{verbatim}
+CREATE VIEW consensus AS
+SELECT d->>'type' AS type, o1, o2,
+       sum((d->>'v')::REAL * c) / sum(c) AS truth,
+       count(*) AS witnesses
+FROM r_active
+GROUP BY 1, 2, 3;
+\end{verbatim}
+
+The last line used to read \texttt{FROM r}. It said so for fourteen months, in production, and the earlier draft of this chapter called it a confession. The cause turns out to be duller and more instructive than bad reasoning.
+
+Four lines below \texttt{consensus} in the same file, the old \texttt{schema.sql} says this, verbatim, in its own comment on \texttt{r\_active}:
+
+\begin{quote}
+\texttt{-- r\_active: relations whose LATEST outcome is not a retraction. Outcomes can}\\
+\texttt{-- retract and later re-confirm any relation; the newest verdict wins. All}\\
+\texttt{-- computed views build on this, never on r directly.}
+\end{quote}
+
+The file states the law four lines after breaking it, and the order is the whole explanation: \texttt{consensus} is defined \emph{before} \texttt{r\_active} in \texttt{schema.sql}, so at the moment \texttt{consensus} was created the view it should have used did not exist yet. Postgres would have refused it. Nobody decided that retracted witnesses were evidence. The author wrote the only thing that would parse, and then wrote the correct rule four lines later and never came back. The rule was right the whole time; the implementation silently predated it.
+
+What it cost, on the corpus as it stood before the wipe: \texttt{r} held 256{,}619 rows and \texttt{r\_active} admitted 149{,}092, so the view was reading 107{,}527 rows that \texttt{r\_active} excludes. That figure decomposes into 57{,}994 outcome rows, which the view was folding into phantom groups of type \texttt{outcome}, and 49{,}533 relations suppressed by a retraction, which stayed in their real groups at full weight \texttt{c}. \textbf{The one view that renders the consensus law was the one view that ignored retraction.} Those numbers are now historical. They describe \texttt{ydb-pre-bigbang-2026-07-17.dump}, and that is the only place they can be re-derived.
+
+In the stem cell the ordering is inverted, and the comment there says why:
+
+\begin{quote}
+\texttt{-- ORDERING IS LOAD-BEARING: r\_active is defined BEFORE consensus, because}\\
+\texttt{-- consensus reads it. In the original schema.sql the order was reversed, so}\\
+\texttt{-- r\_active did not exist yet when consensus was created, and consensus was}\\
+\texttt{-- written against raw r. [...] Do not reorder these.}
+\end{quote}
+
+That is the difference between fixing an instance and fixing the rule that generates instances. A one-word patch to a live view repairs today's answers and nothing else. Reordering the two definitions in the genome removes the pressure that produced the defect: whoever writes \texttt{consensus} in a lineage that boots from the stem cell has \texttt{r\_active} available and does not have to reach for \texttt{r} to get the statement to run. Be precise about how much that buys, because it is less than it sounds. \texttt{FROM r} still parses, and a future author can still type it. What is gone is the specific trap of being forced into the wrong table by a dependency that did not exist yet, which is what happened here. The comment marked \textsc{ordering is load-bearing} is doing the rest of the work, and comments are not enforcement.
+
+Two residues. The first is that the correction row recording this fix was object 178{,}561 in the old instance, and it is gone with the rest of it. The claim that the record of the fix is a row in the database rather than a quiet change to a file, which the old draft made and was pleased about, survives only as a claim about a dump. The second is \texttt{schema.sql} itself: it is still on disk, still creates \texttt{consensus} at line 61 and \texttt{r\_active} at line 71 in that order, and still says \texttt{FROM r} at line 65. It is no longer the boot path and nothing is built from it, so it can no longer reintroduce the bug on its own. It reintroduces it only if somebody chooses to run a superseded file, which would also give them \texttt{BIGINT GENERATED AS IDENTITY} keys and every other thing the stem cell exists to have fixed. That downgrades it from a live hazard to litter, and litter in a repository that a reader might mistake for the design is still worth removing.
+
+\begin{Correspondence}{All queries go through r\_active, never raw r}{Read the view definitions out of \texttt{pg\_views} and look for a \texttt{FROM r} that is not a \texttt{FROM r\_active}.}
+This passes of the running system and of the stem cell, and does not pass of \texttt{schema.sql}, which no longer runs. Note honestly why it passes so easily now: the instance is minutes old and was booted from a file, so of course it matches the file. A correspondence between a database and its own genome, checked before anyone has typed anything into the database, is the weakest possible version of this check. It got interesting the last time precisely because fourteen months of hands had been in it.
+\begin{Check}
+SELECT viewname, definition FROM pg_views WHERE schemaname='public';
+  -- blobs, consensus, r_active: all three read r_active, none reads r
+SELECT count(*) FROM r;         -- 0
+SELECT count(*) FROM consensus; -- 0
+grep -n 'FROM r' schema.sql     -- line 65: still FROM r, and nothing boots from it
+\end{Check}
+\end{Correspondence}
+
+One thing this does not settle. The view now reads the right table. The law it renders is still a seed prior. Rule \texttt{consensus} still carries \texttt{"law": "linear"} and \texttt{"status": "seed-prior"}, verbatim, in the stem cell and in the live instance, and fixing a \texttt{FROM} clause is not fitting a weighting law. Nothing above is progress on that.
+
+\section{consensus, second problem, and it is larger}
+
+The retraction bug was a one-word fix, and it was fixed. The next thing is not a one-word fix and has not been touched.
+
+Before the wipe, the arithmetic was this: 256{,}619 rows in \texttt{r}, exactly one of which carried a \texttt{v} key, producing 144{,}514 consensus groups of which exactly one had a non-null \texttt{truth}. The view computed one number.
+
+After the wipe the arithmetic is this: zero rows in \texttt{r}, zero groups, zero numbers. The corpus went from one row to no rows. This is not a regression and it is not an improvement, and the temptation to score it either way should be resisted. It is the same fact in a new frame: \emph{witnesses do not carry values}. The relation table records that an authorship was asserted with confidence 0.85, not that some quantity was asserted to be 3.14\,V with confidence 0.85. The \texttt{d} payload has no value slot in practice, because no ingest path ever wrote one, and the new instance has no ingest paths at all yet.
+
+The instrument lineage is the first thing that plausibly changes this, and it is worth saying why rather than hoping. A fridge sweep has quantities in it. Per \texttt{oplog-vs-blob-v1} the sweep points do not enter \texttt{r}, so the ten million numbers in the trace are not the corpus and never will be. What could enter \texttt{r} with a \texttt{v} is the small number of extracted scalars a run is actually claimed to establish: a transition temperature, a carrier density, a critical current, each asserted by an analysis at some confidence, each contradicted sooner or later by another analysis of the same run. That is a consensus corpus with real disagreement in it. It does not exist.
+
+\begin{Open}{Does the consensus law have any data?}{Give witnesses a value field in the ingest paths that have one to give, populate it, and count the non-null truths.}
+The ingest paths with a value to give are the extracted scalars, not the raw traces: \texttt{oplog-vs-blob-v1} rules the traces out of \texttt{r} on purpose. Populate those and re-run the view. If \texttt{truth} becomes non-null on a useful number of groups, and if some of those groups have more than one active witness disagreeing, the linear-versus-Born fit is a measurement rather than an argument. Today it is neither, and the instance is empty, so today it is not even a small corpus.
+\begin{Check}
+SELECT count(*) FROM r WHERE d ? 'v';                    -- 0
+SELECT count(*) FROM consensus;                          -- 0
+SELECT count(*) FROM consensus WHERE truth IS NOT NULL;  -- 0
+SELECT count(*) FROM consensus WHERE witnesses > 1;      -- 0, the number that matters
+\end{Check}
+Until that happens, every claim in this book about the consensus law, including the ones in Chapters 15, 16, and 17, is being made about a view that has never returned a contested group. The rule row still says \texttt{"status": "seed-prior"}, and it says that today for the same reason it said it a year ago.
+\end{Open}
+
+\section{component, realize, and the blob family}
+
+\texttt{component()} belongs to Chapter 5, which prints it and walks it. One change here: the genome generalized it. It was \texttt{component(seed TEXT, min\_c REAL)} with \texttt{j->>'addr' = lower(seed)} hardcoded into the recursive seed, and the lowercasing of an email address is email tissue that had no business in the substrate. It is now \texttt{component(seed\_key TEXT, seed\_val TEXT, min\_c REAL DEFAULT 0.9)}, and a lineage supplies its own seed lookup. The $\pi_0$ computation, which is the part that is genome, is unchanged.
+
+\texttt{realize()} is amendment 2, and it now returns a \texttt{UUID}:
+
+\begin{verbatim}
+CREATE FUNCTION realize(branch UUID) RETURNS UUID LANGUAGE sql AS $$
+  INSERT INTO r (d, b)
+  VALUES (jsonb_build_object('type','realize','branch',branch::TEXT), branch)
+  RETURNING i;
+$$;
+\end{verbatim}
+
+Selecting a branch does not delete the branches you did not select; it writes a row saying you selected one. The losers stand. The 2025 branching paper's measurement primitive was \texttt{DELETE} on non-selected branches, and Chapter 15 confronts that; this function is the repudiation, and it is four lines long. It has never been called. That was already true when \texttt{r} held a quarter of a million rows, and it is trivially true now that \texttt{r} holds none, so the old check has lost its force: zero out of zero is not evidence of anything.
+
+\begin{Correspondence}{Amendment 2 has never been exercised}{Count the \texttt{realize} rows, and note that the count was already zero when the table was large.}
+The claim needs the archive to mean anything. On the pre-big-bang instance the answer was zero out of 256{,}619, which is a fact about fourteen months of use. On the live instance the answer is zero out of zero, which is a fact about the last few minutes.
+\begin{Check}
+SELECT count(*) FROM r WHERE d->>'type'='realize';  -- 0
+SELECT count(*) FROM r;                             -- 0, so the above says nothing
+-- the load-bearing version of this check runs against
+-- backups/ydb/ydb-pre-bigbang-2026-07-17.dump: 0 out of 256,619
+\end{Check}
+The mechanism exists, is four lines, and is untested code. \texttt{divergence-is-data-v1} says merge is a deliberate \texttt{realize()} event that leaves both parents standing. That is an assertion about a function that has never run.
+\end{Correspondence}
+
+And a construction defect worth one paragraph, because it is harmless until it is not. A \texttt{realize} row has \texttt{o1} and \texttt{o2} NULL: it is a relation between nothing and nothing. It is not an outcome row, so \texttt{r\_active} admits it as an active relation. It has no \texttt{v}, so \texttt{consensus} emits it as a group \texttt{('realize', NULL, NULL)} with a NULL truth and a witness count. The first time anyone calls \texttt{realize()}, the consensus view grows a phantom group about branch selection, and every subsequent call adds to its witness count. Nothing breaks. It is ugly by construction, and it is the ugliness that appears when a table is asked to hold both relations and events about relations without a discriminator anyone checks. The same is true of \texttt{blob\_seen\_at}, which writes a row with \texttt{o2} NULL and will produce a \texttt{('seen-at', <blob>, NULL)} group. The instrument lineage did not introduce that pattern; it inherited it, and it will be the first lineage to hit it in volume.
+
+\texttt{blob}, \texttt{blob\_seen\_at}, \texttt{blobs}, \texttt{retract}, and \texttt{uuid\_from\_sha256} are instrument tissue and belong to the lineage chapter. They are listed here because they are in the running instance and an inventory that omits them is not an inventory.
+
+\section{The big bang}
+
+Here is the part of this chapter that is new, and it is the reason the chapter is titled for time.
+
+Every instance records the moment it was brought to life. Jeremy's statement of it is three sentences: every database should have a big bang time; when a new machine is brought to life it has a big bang moment; and you do not need to start at $t = -\infty$, you can define the moment of the big bang. The third is the one that does work. A new instance is not a migration problem with an empty history to be apologized for. It is a universe with an origin, and there is nothing before the origin, and that is a statement about the instance rather than an admission about the data.
+
+The recording is one insert, once, at boot, and it is an ordinary object with no special table and no special column:
+
+\begin{verbatim}
+{
+  "at": "2026-07-17T04:20:12.336Z",
+  "kind": "big-bang",
+  "t_universe": "435400001784262012.336608",
+  "epoch_rule": "universal-epoch-v1",
+  "note": "this instance was brought to life at this moment; nothing
+           precedes it. Its identity is this row's o.i."
+}
+\end{verbatim}
+
+\subsection{The instance is its birth event}
+
+\texttt{instance\_id()} returns that row's \texttt{o.i}. There is no instance-id column, no config file, no name. For this instance the answer is \texttt{019f6e4d-adb0-7c46-9d4b-ce4fbe666174}, and that string was never chosen by anybody.
+
+This is the same move the design makes everywhere else and it is worth naming as such rather than admiring it separately. A person is not stored; a person is a connected component of \texttt{same} witnesses. Truth is not stored; truth is a view. An instance is not stored either; an instance is a computation over the one thing it witnessed about itself. What makes it work is that the birth event already has an identity: its \texttt{o.i} is a \texttt{uuidv7}, which is unique across every machine that ever boots, without any of them talking to each other. Two instances merged later are two big-bang rows in one table, and neither had to be present at the other's birth for their birth moments to be comparable. That comparability is what the universal frame buys, and it is the only thing it buys.
+
+\begin{Correspondence}{An instance is identified by its big bang}{The identity is computed from the birth row, not stored in a column or a file.}
+Check it by looking for the thing that is not there: grep the two SQL files for an instance-id column, a name, a config read. There is none. Then read the function, which is four lines and does a lookup.
+\begin{Check}
+SELECT instance_id();  -- 019f6e4d-adb0-7c46-9d4b-ce4fbe666174
+\d o                   -- columns: i, j. No instance column.
+SELECT count(*) FROM o WHERE j->>'kind' = 'big-bang';  -- 1
+\end{Check}
+The uniqueness claim is inherited from \texttt{uuidv7} and is not tested here. It is the same claim Chapter 7 makes about every other id in the system, and if it fails, this fails with it and not before it.
+\end{Correspondence}
+
+\subsection{The declared constant, and why it cannot be measured}
+
+\texttt{t\_universe(ts)} returns seconds since the Big Bang. It is the sum of one declared constant and the Unix epoch seconds of \texttt{ts}, and the constant lives in a rule row at \textbf{level 0}, the only level-0 rule in the system:
+
+\begin{verbatim}
+"name": "universal-epoch-v1",
+"seconds_to_unix_epoch": "435400000000000000",
+"status": "declared convention, exact by fiat"
+\end{verbatim}
+
+The arithmetic behind the number is in the row's \texttt{source} field and it is short. The age of the universe is $13.797 \pm 0.023$ Gyr (Planck 2018 results VI). A Julian year is exactly 31{,}557{,}600 seconds. The product is $4.35400 \times 10^{17}$ seconds, and the row carries \texttt{4.354e17}, rounded there because carrying more digits would be false precision.
+
+Now the part that must not be softened, because it is the whole reason this is a rule row and not a \texttt{\#define}. The uncertainty on the age is $\pm 0.023$ Gyr. In seconds that is about $7.3 \times 10^{14}$. Set that against the number the constant carries, $4.354 \times 10^{17}$, and about four of the eighteen digits are physically meaningful. Set it against anything a database records and the comparison stops being close: the uncertainty on the origin is roughly twenty-three million years, which is larger than the entire history of the genus \emph{Homo}, larger than every timestamp difference this database will ever hold by a factor with fourteen zeros in it. \textbf{The absolute count of seconds since the Big Bang cannot be measured to any precision a database would care about, and it never will be.} Not because the instruments are bad. Because the quantity is not known to that many digits and is not the kind of quantity that becomes known to that many digits.
+
+So the constant is not measured. It is \emph{declared}, exact by fiat, and everything downstream is a difference from it.
+
+This is exactly what SI does with $c$. The metre used to be a measurement of a bar in Paris, and the speed of light was a number you went and measured, with error bars. Then the definition was inverted: $c$ is exactly 299{,}792{,}458 m/s, not because anyone measured it that well, but because we chose to stop measuring it and let it define the metre instead. The uncertainty did not go away; it moved, out of $c$ and into the realization of the metre, where it belongs and where it can be handled. The same move is made here. The uncertainty on the age of the universe has not been wished away. It has been moved out of \texttt{t\_universe} and into the choice of origin, where it is a convention rather than an error bar, and where every instance that agrees to the row agrees to the same one.
+
+What survives the move is differences. \texttt{t\_universe(a) - t\_universe(b)} is exact and physical, and the declared constant cancels out of it identically, so the difference does not depend on the constant being right. It depends only on the two instances having agreed to the same constant, which is a coordination question and not a cosmology question. The absolute value is a coordinate. The differences are the physics. This is not an analogy to a gauge choice; it is one.
+
+\begin{Theorem}{Only differences of t\_universe carry information}{Planck 2018 results VI: age $= 13.797 \pm 0.023$ Gyr, so $\sigma \approx 7.3 \times 10^{14}$ s on an origin quoted to $4.354 \times 10^{17}$ s.}
+The declared constant appears additively and identically in every value \texttt{t\_universe} returns, so it cancels exactly in any difference and contributes nothing but an offset to any absolute. The physical uncertainty on that offset exceeds every interval the database will ever record by fourteen orders of magnitude, so no absolute value of \texttt{t\_universe} is a claim about the world. It is a coordinate. Differences are claims about the world and are exact.
+\begin{Check}
+SELECT 13.797e9::numeric * 31557600;  -- 435400207200000000, i.e. 4.35400e17
+SELECT 0.023e9::numeric * 31557600;   --    725824800000000, i.e. 7.258e14 s
+-- the constant cancels: age() never reads it as a value, only as a difference
+SELECT age('2026-07-17T05:00:00Z'::timestamptz)
+     = extract(epoch FROM '2026-07-17T05:00:00Z'::timestamptz)::numeric
+     - extract(epoch FROM '2026-07-17T04:20:12.336608Z'::timestamptz)::numeric;
+\end{Check}
+\end{Theorem}
+
+\subsection{Why NUMERIC, demonstrated rather than asserted}
+
+\texttt{t\_universe} returns \texttt{NUMERIC}, and the stem cell's comment says why: about $4.354 \times 10^{17}$ against a double's roughly 15 to 16 significant digits puts seconds at the edge and loses milliseconds entirely. That is correct and it is worth showing instead of saying, because the failure is silent and it is larger than "loses milliseconds".
+
+This instance's own birth moment, computed both ways:
+
+\begin{verbatim}
+numeric: 435400001784262012.336608
+double : 4.35400001784262e+17
+diff   : 12.336608
+\end{verbatim}
+
+A double does not lose the milliseconds. It loses \emph{twelve seconds}, and then the milliseconds, and it does it without an error. And the loss does not stop at the absolute, which is the part that matters, because the previous subsection just argued that only differences are physical. Take a difference of forty minutes:
+
+\begin{verbatim}
+exact (numeric): 2387.663392 s
+via double     : 2368        s
+\end{verbatim}
+
+Nineteen and a half seconds of error on a forty-minute interval, because both operands were rounded to the same 128-second grid before subtracting and the rounding did not cancel. The thing the design says is exact and physical would have been wrong in the second digit. \texttt{NUMERIC} is not fastidiousness here, it is the difference between the central claim holding and not holding, and it costs nothing because this is not a hot path.
+
+\begin{Correspondence}{t\_universe must be NUMERIC, not double precision}{A double rounds the epoch to a 128-second grid, and the error survives subtraction.}
+\begin{Check}
+SELECT t_universe('2026-07-17T04:20:12.336608Z');           -- 435400001784262012.336608
+SELECT t_universe('2026-07-17T04:20:12.336608Z')::float8;   -- 4.35400001784262e+17
+SELECT t_universe('2026-07-17T05:00:00Z')
+     - t_universe('2026-07-17T04:20:12.336608Z');           -- 2387.663392
+SELECT t_universe('2026-07-17T05:00:00Z')::float8
+     - t_universe('2026-07-17T04:20:12.336608Z')::float8;   -- 2368
+\end{Check}
+The second and fourth lines are what the function would return if the type were changed to \texttt{double precision}, which is the obvious optimization and the reason this correspondence is written down.
+\end{Correspondence}
+
+\subsection{Do not edit the origin}
+
+The rule row carries its own revision clause, and it is the most interesting sentence in the stem cell:
+
+\begin{quote}
+\texttt{"revision": "if the age estimate changes, DO NOT edit this row: that would}\\
+\texttt{ silently translate every timestamp in every instance downstream of it.}\\
+\texttt{ Supersede it with universal-epoch-v2 carrying an explicit offset, and treat}\\
+\texttt{ the change as a coordinate transformation."}
+\end{quote}
+
+The reasoning is short and it follows from the previous two subsections. Cosmology will revise the age; it has revised it before and the error bars are not zero. The instinct on receiving a better number is to update the constant, and the instinct is exactly wrong. \texttt{t\_universe} reads the constant at call time, so editing the row does not correct anything: it moves every past timestamp in this instance, and every past timestamp in every instance that ever synced with it, by the size of the revision, silently, with no row recording that it happened. Nothing would break and nothing would report an error. The database would simply start answering differently about the past.
+
+And it would be moving them for no gain, because the absolute was never a claim about the world in the first place. A better age estimate improves a number that carries no information here. What it would damage is the only thing that does carry information, which is agreement between instances about a shared origin.
+
+So: supersede, with an explicit offset, and treat it as what it is, a change of coordinates. The general form is the design's own rule, applied to the design's own constant: nothing is edited, a new row supersedes, and the transformation between the two frames is written down rather than applied invisibly. \textbf{Origins do not get better. They get changed.} A constant that can be improved was a measurement pretending to be a definition, and this one is a definition.
+
+\begin{Open}{universal-epoch-v2 has no mechanism}{Write the superseding row and the code that has to read both, and find out what \texttt{t\_universe} owes an instance born under v1.}
+The rule says supersede rather than edit, and the rule is right, and there is no implementation of superseding. \texttt{t\_universe} does \texttt{WHERE j->>'name' = 'universal-epoch-v1'}, with the version string hardcoded in the function body, so a v2 row would sit in \texttt{o} being ignored. Settling this means answering what a v2 instance and a v1 instance owe each other on merge, and the honest answer is that it cannot be settled before the sync channels exist, because the whole cost of getting it wrong is a cost paid at merge and there is no merge.
+\begin{Check}
+SELECT prosrc FROM pg_proc WHERE proname = 't_universe';
+  -- WHERE j->>'name' = 'universal-epoch-v1'  <- hardcoded, no version negotiation
+SELECT count(*) FROM o WHERE j->>'name' LIKE 'universal-epoch-%';  -- 1
+\end{Check}
+\end{Open}
+
+\subsection{age(), a difference, and a name collision}
+
+\texttt{age()} is seconds since this instance's birth, and it is written as a difference of two \texttt{t\_universe} values, so the declared constant cancels and the result carries none of the epoch's conventional uncertainty. That is the design working: the conventional part is confined to one additive term that never survives to an answer anybody uses.
+
+And it has a defect, found while checking exactly that, and it is live:
+
+\begin{verbatim}
+SELECT age();                                    -- 319.906112        numeric
+SELECT age('2026-07-17T05:00:00Z'::timestamptz); -- -05:00:00         interval
+\end{verbatim}
+
+The second call is not the function in the stem cell. Postgres ships \texttt{pg\_catalog.age(timestamp with time zone) -> interval}, which is the same signature as \texttt{public.age(ts timestamptz) -> numeric}, and \texttt{pg\_catalog} is searched before \texttt{public} regardless of \texttt{search\_path}. So every one-argument call to \texttt{age} silently resolves to the built-in, which returns an interval from \texttt{current\_date}. The zero-argument call works only because \texttt{pg\_catalog} has no zero-argument \texttt{age}.
+
+The value it returned, \texttt{-05:00:00}, is worth looking at, because it is the shape of the problem. It is not an error. It is not null. It is the machine's timezone offset, wearing the units of the thing that was asked for, and a reader who wrote \texttt{age(run.t)} to get the age of an instance at the moment of a run would get an interval that looks entirely plausible and is unrelated to the question. The stem cell's documented interface is \texttt{SELECT age();}, which is the one call that happens to work, so the comment block is not wrong and the defect is not visible from it.
+
+\begin{Correspondence}{age(ts) does not call the function you think it calls}{\texttt{pg\_catalog.age(timestamptz)} has the identical signature and wins resolution, so the one-argument form returns an interval from \texttt{current\_date}.}
+Schema-qualifying the call, \texttt{public.age(ts)}, gets the intended function and the correct answer. Zero-argument \texttt{age()} was never affected. The repair is to rename: \texttt{instance\_age} collides with nothing, and shadowing a built-in with a different return type is a trap regardless of which call sites exist today.
+\begin{Check}
+SELECT pg_typeof(age('2026-07-17T05:00:00Z'::timestamptz));         -- interval
+SELECT pg_typeof(public.age('2026-07-17T05:00:00Z'::timestamptz));  -- numeric
+SELECT age('2026-07-17T05:00:00Z'::timestamptz);                    -- -05:00:00
+SELECT public.age('2026-07-17T05:00:00Z'::timestamptz);             -- 2387.663392
+SELECT pg_typeof(age());                                            -- numeric, unaffected
+SELECT n.nspname, pg_get_function_identity_arguments(p.oid),
+       pg_get_function_result(p.oid)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE p.proname = 'age';   -- five pg_catalog rows, then public's
+\end{Check}
+\end{Correspondence}
+
+\subsection{Two wrinkles in the boot, both about ordering}
+
+The birth event is the \emph{last} row in the table by \texttt{o.i}. All nine rules sort before it. That is not a bug and it is not quite the picture the phrase "nothing precedes it" paints: the rules are genome, present in the act of creation and inserted by the same script seconds earlier, and \texttt{universal-epoch-v1} in particular \emph{must} precede the big bang, because \texttt{t\_universe()} reads that row and the big-bang insert calls \texttt{t\_universe()}. The origin depends on a rule that is older than the origin. That ordering is load-bearing in the same way the \texttt{r\_active}-before-\texttt{consensus} ordering is load-bearing, and unlike that one it is not marked with a comment saying so.
+
+The second wrinkle is smaller and sharper. The stem cell says of \texttt{uuidv7} that ids sort by creation, "which is a free tiebreak". Decode the 48-bit millisecond field out of the ten ids this instance minted and the whole boot took fourteen milliseconds, and two rules landed in the same millisecond:
+
+\begin{verbatim}
+019f6e4d-ada2  2026-07-17 04:20:12.322  universal-epoch-v1
+019f6e4d-ada3  2026-07-17 04:20:12.323  boundary-ref-v1
+019f6e4d-ada3  2026-07-17 04:20:12.323  consensus
+019f6e4d-ada4  2026-07-17 04:20:12.324  snapshot-on-observation-v1
+...
+019f6e4d-adb0  2026-07-17 04:20:12.336  big-bang
+\end{verbatim}
+
+The stem cell inserts \texttt{consensus} before \texttt{boundary-ref-v1}. The table returns them the other way around, because inside a shared millisecond the ordering falls through to the random tail and the random tail decided. So the free tiebreak is free and is a tiebreak, and it is exact only to the millisecond, and a boot writes faster than a millisecond. Nothing downstream reads insertion order as truth, which the stem cell's comment also says and which is why this is a wrinkle and not a defect. It is worth knowing before someone writes a query that assumes \texttt{ORDER BY i} reproduces the file.
+
+\begin{Check}
+SELECT coalesce(j->>'name', j->>'kind'),
+       to_timestamp(('x'||replace(substring(i::text,1,13),'-',''))::bit(48)::bigint
+                    / 1000.0) AT TIME ZONE 'UTC'
+  FROM o ORDER BY i;
+-- boundary-ref-v1 and consensus share millisecond .323 and come back
+-- in the opposite order to the file that inserted them
+\end{Check}
+
+\section{The big bang is the only thing that removes history}
+
+This chapter is where the claim has to be made precise, because it is a claim about time.
+
+The design says nothing is ever deleted. The old instance held a duplicated rule row, \texttt{shared-mailbox-v1} at two object ids, and the book said flatly that it could not be fixed, for exactly that reason, and that this was the design working as specified rather than an embarrassment. It is gone now. Not repaired. Erased, along with 178{,}561 objects and 256{,}619 relations, by ending the universe it lived in.
+
+The reconciliation is not clever and should not be dressed up. \textbf{Nothing is ever deleted remains true of every universe.} It says nothing about how many universes there are. The big bang is not a deletion within the system; it is a different system, with a new origin, and the old one is a frozen artifact on disk at \texttt{backups/ydb/ydb-pre-bigbang-2026-07-17.dump}, 1.18 GB, restorable. No row was retracted, no row was rewritten, no history was edited. A universe ended and another one started, and the first one is still readable.
+
+That is a real distinction and it is also cheap to abuse, so state the cost plainly. The fix for one duplicated row was the loss of 178{,}561 objects. That was acceptable here for two reasons and neither generalizes: Jeremy judged that none of it was worth keeping, and the sources it was derived from, the mail archive and the bibs and the calendars, all still exist and can be re-derived at will. Neither of those will be true of an instrument instance with a year of cooldowns in it. \textbf{A big bang is not a repair technique.} It is available once, cheaply, at birth, and the price rises with every row.
+
+\section{Branches and time in the view layer}
+
+The chapter is titled for four things. Here is what branches and time do at this level, which is nearly nothing, and the nearly is the point.
+
+\textbf{The branch column \texttt{b} appears in exactly one function, \texttt{realize()}.} It is in no \texttt{WHERE} clause, no \texttt{GROUP BY}, no join condition in \texttt{r\_active}, \texttt{consensus}, \texttt{blobs}, or \texttt{component()}. It is indexed (\texttt{r\_b\_idx ON r (b, t DESC)}) and it is the compression segment key, and no query reads it. At the view layer, the branch column is inert. Chapter 12 says what it is doing to compression and why the situation is worse than inert. Note that \texttt{b} still defaults to \texttt{gen\_random\_uuid()}, a v4, while every other id in the system moved to \texttt{uuidv7} on 2026-07-17. That is defensible, since a branch is not an event and has no birth moment to sort by, but it was not argued anywhere and it is the one place the identity fix did not reach.
+
+\textbf{The time column \texttt{t} appears in exactly one place in the computed layer: the tiebreak inside \texttt{r\_active}}, \texttt{ORDER BY rx.t DESC, rx.i DESC}, which decides which outcome is the latest. That is the whole of time's role in the views. \texttt{t} is the hypertable partitioning column, so it governs where a row physically lands. The tiebreak now sorts a \texttt{uuidv7} rather than a \texttt{BIGINT} counter, which is the improvement Chapter 7 describes and which carries the millisecond caveat from the boot section above: two outcomes on the same relation in the same millisecond tie-break at random. That is a narrow window and it is not zero.
+
+Everything else time does in this system now happens in \texttt{t\_universe}, \texttt{instance\_id}, and \texttt{age}, which are functions and not views, and which no view calls. The big bang is recorded and it is queryable and nothing computed reads it.
+
+That is a small surface, and it is worth naming what it implies. The claim in \textsc{design.md} that the system is a functor from the poset of times, so that the state at any past $t$ is recoverable, is not implemented by any view. \texttt{r\_active} is as-of-now, always. There is no as-of parameter. Getting the state as of last March means writing the query yourself, with the \texttt{t < '2026-03-01'} predicate pushed into both the outer scan and the outcome subquery, and nobody has wrapped that. The big bang gives every instance a floor, which is new and which the old design did not have: as-of queries below \texttt{instance\_id()}'s birth moment are now well-defined as empty rather than merely unpopulated. That is a small thing and it is the only thing the new machinery contributes to the as-of problem.
+
+\begin{Correspondence}{The state at any past time is recoverable, but not by any view that exists}{Confirm the rows are all still there, then list the views and functions and find that none of them takes an as-of time.}
+The first half is data: \texttt{r} is append-only and every retraction is a dated row. The second half is absence, which is why it has to be checked by listing rather than by running. Recovering last March means hand-writing the query, and the naive version, which time-bounds only the outer scan, is wrong: it applies today's retractions to last March's rows. Note that the old version of this check, \texttt{count(*) FROM o} equals \texttt{max(o.i)}, is dead: \texttt{o.i} is a \texttt{uuid} now, there is no max to compare against, and the check was only ever a proxy for nothing having been deleted.
+\begin{Check}
+\dv   -- blobs, consensus, r_active
+
+-- Do NOT use \df here: timescaledb_toolkit installs into public too, so it
+-- returns over a thousand rows. Ask for the project's ten by name.
+SELECT p.proname, pg_get_function_identity_arguments(p.oid)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public'
+   AND p.proname IN ('uuidv7','component','realize','t_universe','instance_id',
+                     'age','blob','blob_seen_at','retract','uuid_from_sha256');
+-- ten rows. Only t_universe and age take a timestamptz, both of them mean
+-- "evaluate the clock at", not "as of", and no view calls either.
+
+SELECT (j->>'at') FROM o WHERE i = instance_id();  -- the floor: 2026-07-17T04:20:12.336Z
+\end{Check}
+The property holds of the data. It is not delivered by the code. The distinction matters because a property nobody has an implementation for is a property nobody has tested.
+\end{Correspondence}
+
+\section{The inventory, flatly}
+
+Three views, ten functions, ten objects, zero relations. \texttt{r\_active} is correct and has nothing to filter. \texttt{consensus} reads the right table for the first time since it was written, renders a law that is still a seed prior, and returns zero groups. \texttt{blobs} is correct and has no blobs. \texttt{component()} is generalized and is Chapter 5's. \texttt{realize()} is the whole of amendment 2 and has never been called, on this instance or the last one. \texttt{t\_universe}, \texttt{instance\_id}, and \texttt{age} are new, are the reason this chapter is titled for time, and one of the three is shadowed by a Postgres built-in in its one-argument form.
+
+Nothing in the list is more than a dozen lines. That is the design working: the substrate is small enough that this chapter can be exhaustive. It is also the design's exposure, because when the computed layer is thirteen objects, one being wrong is a thirteenth of everything, and the last time this chapter was written a sixth of everything had been wrong for fourteen months in a system whose stated purpose is not being wrong quietly. The method that found it has not changed and is the only auditing method this book has: read the objects out of the database, compare them to the sentences that claim to describe them, and write down the differences. It found the \texttt{FROM r} bug last time. It found the \texttt{age(ts)} collision this time, in a universe minutes old with nothing in it, which is the cheapest a defect will ever be to find here and the only advantage an empty instance has.

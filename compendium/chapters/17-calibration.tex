@@ -1,0 +1,124 @@
+\chapter{Calibration and the Empirical Tower}\label{ch:calibration}
+
+Chapter 16 asked whether the exponent in the consensus law is forced, and answered: probably not, so it must be measured. This chapter is about everything else that must be measured and has not been. That is a short list of ideas and a long list of things nobody has run, and the honest way to write it is to put the one good idea first, at full strength, and then count the regressions that were never fit.
+
+\section{A source is an instrument}
+
+The rule row, live, quoted in Chapter 10 and repeated here because the chapter is about it. It was \texttt{o.i=114670} on the instance that ended on 2026-07-17; on yours it is a uuidv7 you have never seen before, which is the point of Chapter 11 and is why it is addressed here by name:
+
+\begin{quote}
+\small\texttt{source-as-instrument-v1}: ``an external source is an evidence-type writ large: it accrues calibrated reliability from outcome rows generated wherever its claims overlap data we control; replication is a witness between claim objects; trust composes along provenance with the empirically fit composition law; structural priors (venue, retraction history) seed and are replaced by measurement. The compiled profile of a source (coverage, quirks, systematics, calibration record) is produced by the same compiler as person profiles and is consulted by queries to interpret the source.''
+\end{quote}
+
+The founding document states it in one sentence: a source is an instrument; estimate its transfer function, not its truth. This is the most native idea in the corpus and the one that is unmistakably a physicist's. You do not ask whether the lock-in is honest. You ask for its response function, and once you have it you can use a dishonest meter, because a known bias is a correction and an unknown bias is a problem. Applied to information, the move says: stop asking whether LinkedIn is reliable. Ask what LinkedIn does to a fact on its way through.
+
+The reason this matters for the lab and not just for the address book is that it collapses a distinction the reader probably still holds. The Oxford 20~T magnet and Crossref are the same kind of thing. Both are systems outside your control that emit claims. Both have coverage, quirks, systematics, and a calibration record. Both should be modeled rather than trusted. That is not a metaphor about instruments; it is the control $\times$ mutability taxonomy of the next section applied twice, once to a magnet and once to a registry, and getting the same shape both times. The magnet's field readback is external and mutable: dated, hashed observations. Its serial number is external and immutable: a boundary ref. The taxonomy does not know the difference between a cryostat and a bibliographic API, and that is the point.
+
+\begin{Analogy}{A source is an instrument}{Breaks because you cannot inject a known input into LinkedIn, so calibration degrades into agreement-on-overlap.}
+A transfer function presumes a linear, stationary response \emph{and} a known input. For an instrument you can supply the input: you calibrate against a standard, you inject a test tone, you measure a resistor you already know. For a source like LinkedIn or Crossref you cannot inject ground truth, so ``estimate the transfer function'' becomes ``measure agreement on overlap,'' which is a different and much weaker operation.
+
+It is weaker in two specific ways. Overlap confounds the source's error with your own, since a disagreement produces an outcome row without telling you which side was wrong. And overlap is not a random sample of the source's claims: the facts a source and the corpus both carry are the easy, public, well-attested ones, which is exactly where any source looks good. The founding document's own bullet says ``calibrate on overlap,'' so the document knows. The transfer-function language promises more than the bullet delivers, and the gap is not a detail: it is the difference between a calibration and a plausibility check.
+\end{Analogy}
+
+\section{The taxonomy, and its one genuine success}
+
+Control $\times$ mutability, from \textsf{DESIGN.md} \S5, dated 2026-07-04:
+
+\begin{itemize}
+\item controlled + immutable: content-addressed, the sha256 is the ID.
+\item controlled + mutable: an ordinary object, \texttt{o.i} plus append-only relations.
+\item external + immutable: a boundary ref. Referential integrity, not epistemic warrant.
+\item external + mutable: snapshot-on-observation, dated and hashed.
+\end{itemize}
+
+And the sentence that makes it a structure rather than a grid: ``The boundary of control IS the boundary between objects and observations. The CDB never contains the external world, only its own observations of it.''
+
+Most 2$\times$2s in a design document are decoration. The evidence that this one is not is a prediction it made about a domain it was not written for. \texttt{oplog-vs-blob-v1} was written on 2026-07-16, twelve days later, about instrument traces, a subject absent from the 2026-07-04 taxonomy. Its answer lands in two cells at once and could have been read off the grid: the bytes of a TDMS file are controlled and immutable, so sha256 is the identity; the path is external and mutable, so it enters as a dated \texttt{seen-at} observation and never as a name. ``Hash is identity; path is a hint.'' Nobody deduced that from the taxonomy at the time. The taxonomy had already deduced it.
+
+\begin{Correspondence}{The taxonomy classifies rather than decorates}{Take any datum, ask which of the four cells it falls in, and check its representation against the cell.}
+Three worked by hand, which is the only way this has ever been run. A DOI: external, immutable, stored as a boundary ref, correct. A Crossref metadata pull: external, mutable, stored as a dated observation, correct. An email header: controlled, immutable once received, and stored as an ordinary object rather than content-addressed, which is a miss worth noting. The book used to recommend running the audit in full across the 178,560 objects of the Names instance. There are ten objects now and the audit over them is trivial and tells you nothing, so the recommendation has quietly become: run it on whatever you put in, as you put it in, which is when it was always cheapest anyway.
+\end{Correspondence}
+
+\begin{Analogy}{Control $\times$ mutability is a classification}{Breaks on both axes: control is neither binary nor permanent, and mutability belongs to an aspect rather than to a thing.}
+Control first. Jeremy controls \texttt{o.i} today, and the moment the lab group writes to a shared instance, ``controlled'' means ``controlled by the group,'' at which point two machines control the same identifier space. Until 2026-07-17 that meant they both minted a record numbered five, and the cell ``controlled + mutable: ordinary CDB object'' was the cell that was actually broken. That particular break is repaired: identities are uuidv7 now and two machines minting concurrently produce two names rather than one collision, which is Chapter 11. The taxonomy's problem survives the repair intact, because it was never about the collision. The grid has no vocabulary for jointly-controlled, so it cannot express what changed, and it would have filed the broken version and the fixed version in the same cell.
+
+Mutability second, and this one has no repair pending. It is not a property of the object; it is a property of an aspect. A DOI is filed external + immutable, and the DOI string is exactly that. Its Crossref metadata mutates continuously. The same external thing is immutable in one aspect and mutable in another, and the grid has no aspect-slicing: it forces you to file the DOI twice and pretend it is two things.
+\end{Analogy}
+
+\section{The ledger of things not fit}
+
+Here is the text of \texttt{staleness-decay-v1} in full, because it is short and it is an indictment. Two versions of it, in fact, and the difference is Chapter 10's business rather than this chapter's. The archived row at \texttt{o.i=114671} read:
+
+\begin{quote}
+\small ``confidence in facts about mutable referents decays with age: \texttt{c(t) = c0 * decay(fact\_type, age)}. Decay curves are to be FIT from the email corpus (empirical half-life of addresses, affiliations, phone numbers), not decreed.'' \emph{status: proposed, not yet fit.}
+\end{quote}
+
+The live row says ``FIT from the corpus (empirical half-life of the fact type),'' the specifics having been generalized out on the way into the genome. The status field is unchanged: \emph{proposed, not yet fit}, on both.
+
+The archive is still there, and this is the one place in the book where that sentence needs a footnote rather than a full retraction. Roughly 592,000 messages across three accounts, spanning 2010 to now, with every address change and affiliation change any of these people ever announced sitting in the headers. What is no longer true is that it is in the database. The header layer was ingested and then wiped on 2026-07-17, and it now exists as \texttt{ydb-pre-bigbang-2026-07-17.dump} and, upstream of that, as the raw \texttt{.eml} source that was always the source of truth. The rule is there. The method is there, and it is a survival regression a second-year student could run in an afternoon: for each address, the interval from last-observed-active to first-observed-dead, right-censored at the corpus edge, fit a hazard. Nobody has run it, and the wipe did not make it harder in any way that matters, because the fit was always going to run over the raw messages and never over \texttt{o} and \texttt{r}. This is the cheapest empirical win in the entire system. It has been sitting untaken since 2026-07-04 and will probably still be untaken when you read this.
+
+While it is untaken, the functional form deserves a flag that nobody has given it. \texttt{c(t) = c0 * decay(fact\_type, age)} presumes multiplicative decay toward zero. That is wrong for affiliations and probably for addresses. Most people do not move. The confidence that Chandralekha is at Pitt should decay toward the base rate of ``still there after $t$ years,'' which for a tenured professor is high and does not approach zero at any $t$ the corpus can see. A decay to zero says that after long enough, we know nothing, when in fact after long enough we know the base rate, which is a great deal. The right form is $c(t) = c_\infty + (c_0 - c_\infty)\,e^{-t/\tau}$, or whatever the fit prefers, with $c_\infty$ itself a fitted per-fact-type quantity. This is a seed prior that nobody flagged as a seed prior, sitting inside a rule whose whole content is that seed priors must be replaced by measurement.
+
+\begin{Open}{Fit the staleness decay}{Run the survival regression on the email archive and report a half-life with an error bar; it is an afternoon's work.}
+Until it is done, every confidence in the system that depends on age is a number somebody typed. The work is two steps and neither needs the database:
+
+\begin{Check}
+-- 1. The hazard, per fact type (address, affiliation, phone):
+--    estimate the hazard of a fact going stale as a function of age,
+--    right-censored at the corpus window per window-censoring-v1.
+--    Output: a half-life with an error bar.
+
+-- 2. The functional form, which is itself an unflagged seed prior:
+--    fit c_inf as a free parameter and test decay-to-base-rate against
+--    decay-to-zero by likelihood ratio.
+
+-- Runs against the raw .eml corpus, not against o and r. The big bang
+-- did not touch the inputs to this fit.
+\end{Check}
+\end{Open}
+
+The same ledger entry, generalized: \textsf{DESIGN.md} \S3 promises three fits. Confidence per evidence type, calibrated rather than assigned. The composition law along zigzags, fit rather than decreed. Decay curves, fit from the corpus. None of the three has been done. Chapter 9 said the tower is entirely at truncation level ``seed prior''; this chapter is where that costs something, because calibration is the level the whole design was pointed at. The design document names exactly two remaining free choices, seed priors and the current truncation, and both are still free.
+
+\section{The deepest hole: the loop may close on itself}
+
+\textsf{DESIGN.md} \S3 opens with the sentence the entire empirical program rests on: ``the observation stream supplies its own ground truth.'' Every identification is eventually tested by the future, by coherence or by clash, and the confirmations and retractions are first-class data. That is why the 53{,}763 retractions of Chapter 4 are an asset and not an embarrassment: they are the training set.
+
+The document never asks whether the future is a fair test.
+
+It is not obviously one. The future tests identifications only where the future looks, and where the future looks is not independent of what the resolver already decided. Suppose the resolver merges two people who are not the same person. Downstream, every query treats them as one. The compiled profile treats them as one. The next witness generated by a session that consulted that profile inherits the merge. The clashes that would have refuted it, two cities at once, two affiliations at once, are now interpreted as one person with two cities, which is a fact about a person and not a contradiction. The merge has made itself unfalsifiable by changing what counts as a clash. So the ``measured precision'' of an evidence type is measured on a corpus that the resolver helped shape, and a resolver with a systematic error may see its own error rate go to zero.
+
+This is not a hypothetical about a future system. It is the structure of the loop as designed, and it is a cousin of \texttt{window-censoring-v1}, which caught the same disease in a milder form: a minimum over a source is a claim about the source's coverage, not about the world. Here the corpus's coverage is partly a function of the resolver's own decisions, which is worse, because the censoring is endogenous.
+
+\begin{Open}{Does the calibration loop converge to truth, or to a fixed point of its own errors?}{Two experiments, neither of them run: a held-out slice the resolver never touched, and a direct measurement of profile contamination.}
+Until one of these runs, ``calibrated, not assigned'' may be calibrated against itself, which is assignment with extra steps.
+
+\begin{Check}
+-- 1. The held-out slice.
+--    Resolve a set of identities by hand, without the resolver's assistance,
+--    on corpus the resolver has never touched. Compare measured precision
+--    per evidence type against it. The divergence between the two precisions
+--    IS the size of the self-confirmation.
+
+-- 2. The contamination, measured directly.
+--    For each confirm/clash outcome row, record whether the observation that
+--    generated it came from a session that had read a compiled profile.
+--    If confirm rates are higher in the profile-informed arm, the loop is
+--    grading its own homework.
+\end{Check}
+\end{Open}
+
+\section{Write-back is not a lens}
+
+The last thing that belongs to calibration and is usually filed under design. \textsf{DESIGN.md} \S2: hand-edits on a compiled view flow back as new observations through a delta lens; get $=$ compile, put $=$ translate the view edit into events, lens laws as the consistency spec. This is Phase 3 and nothing of it is built: the compiler does not exist, so there is no \texttt{get}, so there is certainly no \texttt{put}. But the interesting thing is not that it is unbuilt. It is that the laws it invokes cannot hold, and the failure is the system working correctly.
+
+\begin{Analogy}{Write-back as a delta lens}{Neither lens law survives contact with the compiler that would have to implement them.}
+PutGet fails by design and the document does not notice. Hand-edit the profile to say she moved to Maryland. \texttt{put} records an observation carrying some confidence. \texttt{get} recompiles from all observations, including the twelve older ones that say Pittsburgh. Whether Maryland survives the round trip depends on the consensus law, on the confidences, and on the staleness decay, and there is no guarantee it does. That is not a bug: a hand-edit is \emph{evidence}, not an override, and evidence can lose. GetPut fails too, and for a separate reason: \texttt{get} is an LLM and is nondeterministic, so \texttt{put(get(s),s)} records spurious deltas for an edit nobody made. Neither law holds, so what survives is the shape (get compiles, put translates) with none of the guarantees, and the guarantees were the entire reason to say ``lens'' instead of ``two functions.'' The vocabulary should be retired. If the user's edit must win, that is a confidence assignment, and it should be written as one.
+\end{Analogy}
+
+There is a second reason to retire it, and it is chronological. A lens is convergence machinery: it exists to hold a source and a view in agreement. This project has rejected forced convergence (\texttt{divergence-is-data-v1}, Ch.~15). The lens framing is dated 2026-07-03. The rule that kills it is dated 2026-07-16. The lens is thirteen days older than the principle that makes it incoherent, and it is still in the founding document, which is exactly the kind of drift the book exists to catch.
+
+\section{What this chapter leaves}
+
+One idea worth keeping at full strength, and it is Jeremy's: a source is an instrument, so model it rather than trust it, and the magnet and the registry are the same kind of thing. One classification that earned its keep by predicting an answer twelve days early, and that breaks on jointly-controlled identifiers and on aspect-sliced mutability. Three promised fits, zero delivered. One loop that may be grading its own homework, unexamined since the day it was written. And a lens that cannot satisfy its own laws and never could.
+
+The plan in the whitepaper schedules all of this sixth of six. That ordering is defensible for the lab: capture first, meaning later, calibration when there is something to calibrate. It is not defensible as an epistemics. Everything in Part III that depends on a measurement depends on step 6, and steps 1 through 5 have not started.

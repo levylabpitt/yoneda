@@ -1,0 +1,104 @@
+\chapter{Yoneda: Why the Name}
+
+The project is named after a theorem it does not instantiate. That is the first thing to say, and the rest of the chapter is the work of saying it precisely, because the name is not therefore wrong. It is earned by something else, by a smaller and better claim that the founding document also makes and does not notice it is making. The lemma is the branding. The groupoid is the reason.
+
+\section{The theorem, stated correctly}
+
+\begin{Theorem}{The Yoneda lemma}{Yoneda's lemma, in any standard reference: Mac Lane, \textit{Categories for the Working Mathematician}, III.2; Riehl, \textit{Category Theory in Context}, 2.2.4. Not proved here and not proved anywhere in this project's corpus.}
+Let $\mathcal{C}$ be locally small, $A$ an object of $\mathcal{C}$, and $F: \mathcal{C}^{\mathrm{op}} \to \mathbf{Set}$ a presheaf. Then there is a bijection
+\[ \mathrm{Nat}\big(\mathrm{Hom}(-,A),\, F\big) \;\cong\; F(A), \]
+natural in both $A$ and $F$. The corollary usually quoted as ``the'' lemma: the embedding $A \mapsto \mathrm{Hom}(-,A)$ is full and faithful, so $\mathrm{Hom}(-,A) \cong \mathrm{Hom}(-,B)$ implies $A \cong B$. An object is determined, up to isomorphism, by its complete web of morphisms.
+\end{Theorem}
+
+Read that last sentence twice, because every word in it is load-bearing and the project's use of the lemma drops three of them. \emph{Complete}: the bijection is with the whole natural transformation set, not a sample of it. \emph{Up to isomorphism}: not equality, and the difference is where the money is (Section~\ref{sec:groupoid}). \emph{Its morphisms}: $A$ must be an object of $\mathcal{C}$ and must have a hom-set.
+
+Here is the physicist's version, since this is Part III and the furniture is the lab. Sample SA12345 is an LAO/STO heterostructure sitting in a gel-pak. You never observe the sample. You observe a four-probe transport curve taken on it at 2\,K, an AFM topograph of its surface, a note in a cooldown log, Alice reading 3.14\,V on the SR830 X-output while it is wired up. The Yoneda instinct says: the sample \emph{is} that set of arrows, and if two gel-paks have the same set of arrows into and out of them, they are the same sample. That instinct is exactly right about physics and exactly what the lemma does not say without the word \emph{complete} in front of it.
+
+\section{The philosophy, quoted}
+
+DESIGN.md, line 3, at the moment of the rename:
+
+\begin{quote}
+``(Project formerly \texttt{Names}; renamed 2026-07-04. The Yoneda lemma is the design philosophy stated as a theorem: an object is completely determined by its web of morphisms. Nobody observes a person; a person IS the totality of observations attached to them, and a compiled profile is the Yoneda embedding evaluated lazily.)''
+\end{quote}
+
+``The design philosophy stated as a theorem.'' The document says the quiet part itself: it wants the authority of a theorem for a stance. This book's whole apparatus exists to refuse that trade, so the paragraph gets the treatment.
+
+\section{Three places it breaks}
+
+\begin{Analogy}{A person is their Yoneda embedding}{Breaks in three places, and the second is fatal: the person is not an object of the category, so there is no hom-functor to embed.}
+\emph{(i) Completeness.} Yoneda determines an object up to isomorphism given the COMPLETE hom-functor. The observation corpus is radically incomplete and window-censored, and \rulerow{window-censoring-v1} exists precisely because a min over a source is a claim about the source's coverage and not about the world. What the database holds is a partial functor on a partial subcategory, and no uniqueness follows from a partial hom-functor. Two people with disjoint, sparse observation sets are not thereby distinct, and one person split across two sparse sets is not thereby two.
+
+\emph{(ii) The person has no hom-set.} Yoneda is about morphisms into and out of an object of the category. DESIGN.md line 19 says: ``Persons are not objects of Obs; nobody observes a person, only encounters and mentions.'' A thing that is not an object of the category has no $\mathrm{Hom}(-,A)$, hence no Yoneda embedding, hence nothing for the lemma to be about. The same document asserts both sentences fourteen lines apart and never notices.
+
+\emph{(iii) ``Lazily'' is not a categorical word.} It is an evaluation strategy. Laziness names when the compiler runs, not what it computes, and dropping it into a sentence about an embedding gives the sentence a technical smell it has not earned.
+\end{Analogy}
+
+Objection (ii) is the fatal one and it deserves a paragraph rather than a parenthesis, because it is not pedantry: it points at the correct construction. If persons are not in $\mathbf{Obs}$, then a person is an object of something built out of $\mathbf{Obs}$: a quotient, a localization, a component. The design document knows this. Line 33 says a profile is the left Kan extension of observation data along $\mathbf{Obs} \to \mathbf{Person}$. That is a functor between two categories, one of which has persons as objects, and it is the honest statement of what the compiler does. It is also, on the evidence of the file's own timestamps, thirteen days older than the Yoneda paragraph. The Kan framing was written on 2026-07-03 as part of the design. The Yoneda framing was written on 2026-07-04 as part of the rename. \textbf{The name was retrofitted onto a construction that already had a correct name.} Chapter~14 takes the Kan extension apart on its own terms; the point here is only that it, not the lemma, is what line 3 is gesturing at.
+
+There is a fourth objection I will not press, and the reader should know I considered it. One could say: fine, let $\mathbf{Person}$ be the category and let a person's hom-web be the observations in its component, and Yoneda applies after all. It does, trivially and uselessly. In a category whose only structure is ``which component am I in,'' the hom-functor of an object carries exactly the information that the component carries, and the lemma reduces to the tautology that a set is determined by its elements. You do not need Yoneda to say that a connected component is determined by its connected component. Invoking a theorem in the case where it degenerates to an identity is worse than not invoking it, because it purchases the theorem's reputation with none of its content.
+
+\section{What survives, and it is the better half}
+\label{sec:groupoid}
+
+DESIGN.md line 28, and this is the sentence that should have been the brand:
+
+\begin{quote}
+``Store the groupoid, not the skeleton. A CRM stores one canonical record per person and discards the isomorphisms; here the witnesses (the evidence of co-reference) are exactly what gets revised, so they are the data.''
+\end{quote}
+
+The mathematics behind this is real and it is Yoneda-adjacent in the honest sense, meaning it is about the difference between equality and isomorphism. Every category is equivalent to its skeleton. Skeletonization loses nothing up to equivalence. That is a theorem, and it is exactly why a CRM feels fine. You pick one canonical record for Chandralekha Singh, you fold the seven addresses and the three name spellings into it, and everything downstream works, because everything downstream only ever asked questions that are invariant under equivalence.
+
+Then the merge is wrong. Two people got folded into one record, or one person got split across two. Now you want the isomorphisms back, and they are gone. You chose a representative and threw away the choosing.
+
+\begin{Analogy}{Store the groupoid, not the skeleton}{Breaks in both directions: nothing here is a groupoid in the strict sense, and what is stored is richer than one anyway.}
+Equivalence is not equality, and this system pays for the difference in exactly one place: retraction. A skeleton is equivalent to the groupoid, so every query whose answer is invariant under equivalence is answered identically by either, which is why a CRM works for years. The analogy breaks the moment you ask a non-invariant question, and there is exactly one: ``was that identification correct?'' That question is about the isomorphism itself rather than the objects it relates, and it is unanswerable in the skeleton, because the skeleton has no isomorphisms, only their consequences. So the correct statement is not that the groupoid is better. It is that the skeleton is better right up until you need to un-choose the canonical representative, and then it is unrecoverable.
+
+It also breaks in the system's favour and against the doc: \texttt{component()} takes a confidence threshold, so what is stored is not one groupoid but a filtered family of them, and the family is more information than any of its members.
+
+And it breaks against the system, which is the half worth remembering. Nothing here is a groupoid in the strict sense. The witnesses in \texttt{r} are directed rows with a confidence and a branch, not invertible morphisms in a category anyone has exhibited. ``Groupoid'' is a description of $\pi_0$'s input graph, not a structure the schema enforces.
+\end{Analogy}
+
+This is the argument for the name, and it is a good one. A system named for the lemma is committing publicly to the claim that a thing is known by its relationships, and its cash value is not the bijection in Section~13.1. It is a refusal to skeletonize. Chapter~5 showed the mechanism, $\pi_0$ of the \texttt{same}-graph at a cut, computed on demand and never materialized. Chapter~4 showed the price paid to keep it. On the archived universe that price was visible: 107,527 retracted witnesses still sitting in \texttt{r}, roughly two rows in five of everything ever asserted, none of them deleted. Those are the isomorphisms the CRM would have discarded. The book's title is a bet that keeping them is worth the storage, and that bet is checkable, eventually, by whether any of them ever gets used. Nothing has used one yet, and the corpus that held them is now a file on a disk, which does not settle the bet either way but does mean the live instance is currently paying nothing and getting nothing.
+
+\begin{Correspondence}{Retraction is the only operation that needs the groupoid}{Retract one \texttt{same}-witness on your own instance and re-run the derived queries; only \texttt{component()} moves.}
+Ask of each derived query whether its answer changes if the \texttt{same}-witnesses are replaced by a canonical-record table carrying the same partition. It does not, for any of them, because each consumes the partition and none consumes the evidence for it. Then retract a witness and the two representations come apart, because the canonical-record table has nowhere to put the retraction and no way to recompute the partition from it. That is the whole cash value of storing the groupoid, and it shows up in exactly one query.
+
+Two notes on running this, both of which are the big bang's doing. First, the version of this check printed before 17 July seeded on an email address and compared four views: \texttt{coauthor}, \texttt{co\_attended}, \texttt{consensus}, \texttt{component}. Two of those four do not exist in the substrate. \texttt{coauthor} and \texttt{co\_attended} were Names tissue, they were left out of the stem cell on purpose, and the one-argument \texttt{component('someone@pitt.edu')} went with them; the genome's \texttt{component()} takes a key and a value. Second, the retraction step needs \texttt{retract()}, which comes from the instrument differentiation and not from the stem cell. So the check below is the same argument on the rows Chapter 5 had you insert.
+
+\begin{Check}
+-- 1. Baseline, on the Chapter 5 rows.
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- 4
+
+-- 2. Retract one 'same'-witness holding that component together.
+SELECT i, o1, o2, c FROM r_active WHERE d->>'type' = 'same';
+SELECT retract(<i>, 'checking what actually needs the groupoid');
+
+-- 3. Only component() moves: it is the only thing that reads witnesses
+--    rather than the partition they induce.
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- moves
+SELECT count(*) FROM consensus;                                    -- unchanged
+\end{Check}
+
+The last line used to be unchanged for the right reason and also for a wrong one, and the wrong one was the more interesting. \texttt{consensus} was defined \texttt{FROM r}, not \texttt{FROM r\_active}, so it would not have moved even for a retraction of a witness it does aggregate: it averaged over retracted rows. On the archived universe that was not a rounding error. 256,619 rows in \texttt{r} against 149,092 in \texttt{r\_active}, so 107,527 retracted witnesses, roughly two rows in five, were being averaged back into the answer by the view whose entire job is to compute the answer.
+
+That is fixed. \texttt{consensus} reads \texttt{r\_active} in the genome, and the fix was to move a \texttt{CREATE VIEW} up the file, because the cause was ordering rather than doctrine: the view was created before \texttt{r\_active} existed and so could not have referred to it. Check the view definition rather than taking this on faith, since it is exactly the kind of claim this chapter has been wrong about before:
+
+\begin{Check}
+SELECT pg_get_viewdef('consensus'::regclass, true);   -- ... FROM r_active
+\end{Check}
+
+The counts are gone with the universe they were measured on and are reproducible only from \texttt{ydb-pre-bigbang-2026-07-17.dump}. The correspondence holds on either instance; what changed is that step 3's last line is now evidence of invariance rather than evidence of a bug, and a reader should still not take the one for the other without running the \texttt{viewdef}.
+\end{Correspondence}
+
+\section{A note on prior art, for the record}
+
+There is none. The word ``Yoneda'' does not appear in \texttt{CDA.tex}, nor in \texttt{QDA.tex}, nor in any of the four May-2025 drafts, nor in \texttt{Category Theory for Physicists}, which is the one document in the corpus whose stated job was to teach category theory to Jeremy's own group. Neither does ``representable,'' ``presheaf,'' or $\mathrm{Hom}(-,A)$ in any load-bearing use. The 933-line pedagogy that ends in a chapter on strategic research positioning never gets to the lemma.
+
+So there is no idiom to inherit and this chapter has invented one. That is worth stating flatly rather than letting the reader assume a lineage. What the pedagogy did have, and it is the closest hook, is the founding question from its preface: when Alice measures 3.14\,V and Bob measures 3.16\,V on the same sample, how do we encode that these are essentially the same measurement? Its answer was an \texttt{observer\_id} column, which presumes observers are stored rows, which is the thing the running system forbids. The question was right and the answer was exactly backwards, and the arc from that question to $\pi_0$ of a witness graph is the fourteen months this book is about.
+
+\begin{Open}{Is there a nontrivial representability statement here at all?}{Exhibit a category whose persons are objects with non-degenerate hom-sets, then check whether Yoneda says anything \texttt{component()} does not.}
+What is wanted is a category in which $\mathrm{Hom}(p,q)$ carries information beyond ``$p = q$'', and in which a presheaf has a natural reading as a compiled profile. There is an obvious candidate and nobody has written it down: let the hom-sets be the witness paths themselves, so that $\mathrm{Hom}(p,q)$ is the set of zigzags of \texttt{same}-edges connecting $p$ to $q$, with confidence composing under the composition law that Chapter 17 says is unfit. In that setting the hom-set is not a singleton, the category is not a preorder, and the question has content.
+
+Until somebody does write it down, the name is a commitment rather than a theorem, and this chapter has said so.
+\end{Open}

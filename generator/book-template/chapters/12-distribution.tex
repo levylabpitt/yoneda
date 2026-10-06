@@ -1,0 +1,294 @@
+\chapter{Distribution: Local-First and Merge Without Conflict}
+
+Chapter~11 was about names. This chapter is about what happens when there are two copies of the database and rows have to cross between them. The lab has many machines: instrument PCs that must keep acquiring when the network is down, analysis machines, a planned lab server, and \labScratchMachine, which already holds a restore from \labBackupStore. The whitepaper's section~7 says merging them is easy, and it is right about the part that matters most, and wrong or silent about five things that will bite the first time two machines actually sync. This chapter takes the argument seriously and then takes it apart.
+
+Two things have changed under this chapter since it was drafted, and they change the first section rather than the five. The identity defect Ch.~11 named, the one that made the merge story unrunnable rather than merely unproven, was fixed in the stem cell on 2026-07-17 and is demonstrated below on two machines that never spoke. Then, later the same day, the live instance was wiped and rebooted from that stem cell, so the fix is no longer confined to a test container: it is what runs. None of the five went away, and merge is still untested, because there is still nothing to merge over.
+
+\section{The part that is right}
+
+Start with the good news, because it is genuinely good and it is the reason the whole local-first posture is correct rather than a compromise.
+
+The whitepaper's core observation, quoted in full:
+
+\begin{quote}
+Because records are only ever added and never changed, two machines can never disagree about a record. Merging two local copies is just combining their records. The combination does not depend on the order the machines are merged, or on how many times, or on how long one was offline, and it never has to resolve a conflict, because there was never a change to conflict over. Because a file's name is its fingerprint, two machines that happen to capture the same file produce the same name, so the combined copy holds it once, with no coordination.
+\end{quote}
+
+The mathematics under this is real and it is not ours.
+
+\begin{Theorem}{Grow-only sets converge under union}{Shapiro, Preguiça, Baquero, Zawirski, \emph{Conflict-free Replicated Data Types}, SSS 2011; the grow-only set is the canonical state-based CvRDT.}
+A set that is only ever added to, replicated across machines that merge by union, forms a join-semilattice: union is associative, commutative, and idempotent. Therefore the merged state is independent of the order in which machines merge, of how many times any pair merges, and of how long any machine was offline. All replicas that have seen the same set of updates hold the same state, with no coordination, no locking, and no conflict resolution step.
+\end{Theorem}
+
+That is what \texttt{o} and \texttt{r} are, if you squint correctly: append-only row sets. The union of two copies' rows is the copy that has seen everything. Idempotence means a duplicated sync is harmless. Commutativity means the sync topology does not matter. And content addressing composes with this at no extra cost: two machines that capture the same \labFileFormat file compute the same SHA-256, mint the same name, and the union holds it once. Nobody had to talk to anybody.
+
+The whitepaper's conclusion follows: \tier{corr} local-first is the right design and not a concession. The \labColdSystemShort PC never waits on the lab server to record a \labRun sweep. This is worth stating flatly because most distributed systems buy availability by giving something up, and this one does not, at the level of rows.
+
+Cite Shapiro for this and not the whitepaper. The whitepaper cites nothing, anywhere, and it does not need to for its audience, but a book does.
+
+\section{The precondition, met on 2026-07-17}
+
+The theorem has a precondition, and until this week the code did not meet it. Union is only idempotent if two machines that mean the same thing produce the same row, and only injective if two machines that mean different things produce different ones. Both are statements about names. Ch.~11 showed that neither held: \texttt{o.i} and \texttt{r.i} were \texttt{BIGINT GENERATED AS IDENTITY}, per-machine counters, so two instances each minted object 1 and the union silently fused two unrelated objects. The union was not a merge, it was a collision.
+
+That is fixed in \texttt{stem-cell.sql}. \texttt{o.i} and \texttt{r.i} are \texttt{UUID} defaulting to \texttt{uuidv7()}, which the file implements because Postgres 17 has no built-in. Content is named by its content: \texttt{uuid\_from\_sha256()} in \texttt{differentiate-instrument.sql} mints a UUID version 8, the version RFC 9562 reserves for custom layouts, whose payload is the leading bits of the SHA-256.
+
+One thing to be precise about, because it is the sort of claim that decays into a slogan. Six of those leading bits are overwritten by the version and variant fields, so the id is a 122-bit truncation of the digest and not the digest. It is an index. The evidence is the full hash, which stays in \texttt{j->>'id'}, and that is what you verify bytes against. The id being derived from the hash is what makes two machines agree without talking; it is not what makes the name trustworthy.
+
+\begin{Correspondence}{Identity without coordination}{Boot two throwaway instances from the stem cell, let neither reach the other, and compare what each one mints.}
+The two properties the union needs are different and have to be shown separately: distinct content must get distinct names, or the merge fuses unrelated rows, and identical content must get identical names, or the merge holds the same file twice. Per-machine counters failed the first. A random v4 would pass the first and fail the second. The pair \texttt{uuidv7()} for spawned objects and \texttt{uuid\_from\_sha256()} for content passes both, and neither container is told the other exists.
+\begin{Check}
+-- On each of two containers sharing no network, no volume, and no state:
+--   psql -f stem-cell.sql -f differentiate-instrument.sql
+-- 1. Locally spawned objects must DIFFER.
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"local"}') RETURNING i;
+--   container 1: 019f6e43-0677-7fea-bd44-279ceccaa57a
+--   container 2: 019f6e43-083d-794f-8b50-88d2b894e16e
+--   under BIGINT GENERATED AS IDENTITY both would have been 1
+-- 2. The same bytes, hashed independently on each, must MATCH.
+SELECT blob('35e3bc005f4399f8ac0919177ed2275c54b24cff170b833141f815cdc0823c37');
+--   container 1: 35e3bc00-5f43-89f8-ac09-19177ed2275c
+--   container 2: 35e3bc00-5f43-89f8-ac09-19177ed2275c
+\end{Check}
+No collision and no duplication, with zero coordination. This is what section~7 asked for.
+\end{Correspondence}
+
+The dedup half of the whitepaper's sentence rested on a second thing that was also not true until 2026-07-17. ``A file's name is its fingerprint'' is only load-bearing if the code refuses to record a name that is not a fingerprint, and \texttt{blob()} did not refuse. It built the row as \texttt{jsonb\_build\_object(...) || meta}, and jsonb's \texttt{||} lets the right operand win, so \texttt{blob(hash, '\{"id":"NOT-THE-HASH"\}')} minted a ref whose recorded id was a hash of nothing. The operands are now reversed, so \texttt{meta} is the base and the computed fields overwrite it, and the hash is checked against \verb|^[0-9a-fA-F]{64}$| before anything is minted. A caller can still pass junk in \texttt{meta} and it will be kept; they can no longer pass junk as the identity.
+
+\subsection{The migration that was not performed}
+
+When this section was drafted it ended with a scope warning: all of the above was true of the stem cell and of nothing else, because the live instance still had \texttt{bigint} counters under 178{,}561 objects and 256{,}619 relations, and moving it was an open problem with no specified operation. An id is not a fact about the world that a new row can supersede. It is the handle every other row points through, and this design has no operation that changes one. Every route considered was bad: a rewrite in place contradicts the append-only rule it is meant to serve, a parallel-ids scheme means two identity columns and a rule about which one is real, and re-minting into a new instance while witnessing old-to-new was the option most consistent with the design and the one nobody had costed.
+
+That problem was not solved. It was dissolved, by declining to have a past. On 2026-07-17 \labPI wiped the live instance and rebooted it from the stem cell, and the design decision underneath is his: ``i think every database should have a big bang time,'' and, on migration, ``you dont need to start at t=-inf. you can define the moment of the big bang.'' The instance that runs today holds ten objects, nine rules and one big-bang event, and zero relations, and its \texttt{o.i} and \texttt{r.i} are UUIDs because it was born from a file in which they always were. There was no migration because there was nothing on the far side of the origin to migrate.
+
+The old universe is archived, not deleted: \texttt{ydb-pre-bigbang-2026-07-17.dump}, 1.18~GB, in the nightly backup directory, holding all 178{,}561 objects and 256{,}619 relations. \labPI is re-introducing names, papers and emails himself, on his own schedule, from the sources they were derived from in the first place.
+
+State the cost plainly, because this is the operation that will look attractive later, when it is no longer cheap. Not migrating cost 178{,}561 objects and 256{,}619 relations of real work. That was acceptable for exactly two reasons, neither of which generalizes: \labPI judged that none of it was worth keeping, and every source it was derived from still exists. A big bang is available once, at birth, for almost nothing, and its price rises with everything you put in afterwards. It is not a repair technique. It is a thing you can afford before you have anything to lose.
+
+\begin{Correspondence}{An origin is declared, not migrated to}{Query the live instance for its birth event and its size; there is nothing before the one and almost nothing after it.}
+The migration problem was a demand that the new naming scheme be reconciled with everything named under the old one, back to the beginning of the corpus. Defining an origin removes the demand rather than meeting it. There is no $t=-\infty$ to start from and no reconciliation to specify, because the instance has no history it did not witness. What makes this legitimate rather than a euphemism for a delete is that the discarded universe is a frozen artifact on disk and the new one is a different system, not the old one with rows removed. ``Nothing is ever deleted'' remains true of every universe. It never said how many universes there are.
+\begin{Check}
+-- The live instance, 2026-07-17, after the wipe and reboot.
+SELECT count(*) FROM o;   -- 10: nine rules and one big-bang event
+SELECT count(*) FROM r;   -- 0:  nothing has been witnessed yet
+SELECT j FROM o WHERE j->>'kind' = 'big-bang';
+--   {"at": "2026-07-17T04:20:12.336Z", "kind": "big-bang",
+--    "t_universe": "435400001784262012.336608", "epoch_rule": "universal-epoch-v1", ...}
+-- And the ids are UUIDs because the instance was born that way, not moved to it.
+\d o   -- i | uuid | not null | uuidv7()
+\d r   -- i | uuid | not null | uuidv7()
+\end{Check}
+\end{Correspondence}
+
+\subsection{Two big bangs in one frame}
+
+The birth event is not decoration on the merge story; it is the other half of the identity fix, and it arrived the same day. An instance is identified by its big bang. There is no instance-id column and no config file holding a machine's name, because the birth event already has an identity: its own \texttt{o.i}, a \texttt{uuidv7}, unique across every machine that ever boots, minted without coordination. \texttt{instance\_id()} reads it back. This is the same move the design makes everywhere else, and Ch.~11 made it about persons: the entity is not stored, it is computed from what was witnessed. Here the entity is the machine, and the witness is its own birth.
+
+That is what makes two instances comparable before they have ever spoken. Each records its birth in \texttt{t\_universe}, seconds since the Big Bang, per the level-0 rule \texttt{universal-epoch-v1}, which declares the number of seconds from that origin to the Unix epoch as an exact constant rather than a measurement. It has to be declared: the age of the universe is 13.797 $\pm$ 0.023 Gyr, an uncertainty of about $7.3\times10^{14}$ seconds, so the absolute count can never be measured to a precision any database would notice, and only differences are physical. The rule row makes the same move SI makes with $c$, and says so, and says not to edit the constant if cosmology revises the age. Two instances merged later are two big bangs in one frame, and their birth moments can be ordered and differenced without either machine having been present at the other's, and without anyone having agreed on a lab-wide numbering, a hostname registry, or a coordinator. That is the narrow thing the frame buys: a shared origin that nobody owns and no machine had to negotiate, which is exactly the shape of every other guarantee in this chapter.
+
+Be precise about how narrow that is. A common frame makes birth moments comparable. It does not make the clocks agree, and \S\ref{sec:latest-wins} below is entirely about what breaks because they do not. \texttt{t\_universe} is Unix time plus a declared constant, so it inherits every error the machine's wall clock has and adds a large exact number to it. Differences within one instance are exact; differences across two are exactly as good as the two clocks, which is the problem, not the fix.
+
+So the whitepaper's section~7 is satisfied. Its blocker is gone, and gone on the machine that matters and not only in a test container. What is not gone is the work: nothing has ever been merged, no merge has been tested, and the two channels below still do not exist. The new instance has no data, so it has also re-derived nothing. Section~7 asked for names that survive a union, and it now has them. A union is still a thing that has never happened here.
+
+\section{Five things wrong with it}
+
+In order of severity.
+
+\subsection{1. Records versus truth}
+
+``Two machines can never disagree about a record'' is a sleight of hand, and the whitepaper concedes it two sentences later when it writes ``when two machines genuinely disagree.'' Both sentences are in the same paragraph.
+
+They cannot disagree about whether a record \emph{exists}. They can and will disagree about what is \emph{true}. Alice's machine records that scan \texttt{9f2b...} is of sample \labSample with $c = 0.9$; Bob's records that it is of \labSampleAlt with $c = 0.8$. After the merge both rows are present on both machines, and no conflict was resolved, because both rows are simply there. Nothing about the union tells you which sample the scan is of.
+
+The clean statement, which the whitepaper never draws and which this book needs, is one sentence: \textbf{the row-set converges; the interpretation does not.} Consensus is a view (Ch.~8), not a stored fact. Disagreement is preserved by construction. Everything the whitepaper says about ``conflict-free'' is a claim about \texttt{o} and \texttt{r}, and nothing about \texttt{consensus}.
+
+\begin{Correspondence}{Merging cannot resolve a disagreement about truth}{Union two copies that hold contradictory witnesses and ask the views what the scan is of.}
+The merge is a set union and set union has no opinion. Both witnesses survive it, and every answer about which sample the scan belongs to comes out of a view at read time, under a rule row that is still \texttt{status: seed-prior}. Simulate the union on one instance by simply inserting both witnesses, since a union is what the merge would have produced anyway.
+\begin{Check}
+-- Alice's copy says the scan is SA12345, with confidence 0.9
+INSERT INTO r (o1,o2,d,c) VALUES (:scan,:sa12345,'{"type":"same"}',0.9);
+-- Bob's copy says SA12346, with confidence 0.8
+INSERT INTO r (o1,o2,d,c) VALUES (:scan,:sa12346,'{"type":"same"}',0.8);
+SELECT count(*) FROM r_active WHERE o1=:scan AND d->>'type'='same';   -- 2, both rows are simply there
+SELECT witnesses FROM consensus WHERE o1=:scan AND type='same';      -- 2, the view counts the disagreement, it does not settle it
+SELECT count(*) FROM component(:scan_addr, 0.9);   -- 2: the scan and SA12345. Bob's 0.8 is below min_c
+SELECT count(*) FROM component(:scan_addr, 0.5);   -- 3: SA12346 joins. The threshold moved, not the data
+\end{Check}
+The last two lines are the point. Nothing about the merge changed between them, and nothing about the rows changed either. The view's threshold did.
+\end{Correspondence}
+
+\subsection{2. Latest-wins does not survive two clocks}\label{sec:latest-wins}
+
+This is the whitepaper refuting itself, four sections apart, and it is the most valuable contradiction in the document.
+
+Section~7: ``the same `latest correction wins' rule produces the same answer on every machine.''
+
+Section~10: ``Ordering across machines rests on time-ordered names and per-machine markers rather than on trusting that clocks agree, which is worth saying so no one leans on clock agreement.''
+
+Section~7 leans on clock agreement. Here is the mechanism it leans on, as it stands on the live instance, from \texttt{stem-cell.sql}:
+
+\begin{verbatim}
+CREATE OR REPLACE VIEW r_active AS
+SELECT r.* FROM r
+WHERE r.d->>'type' <> 'outcome'
+  AND COALESCE((SELECT rx.d->>'verdict' FROM r rx
+                WHERE rx.d->>'type' = 'outcome'
+                  AND (rx.d->>'of')::UUID = r.i
+                ORDER BY rx.t DESC, rx.i DESC LIMIT 1), '') <> 'retracted';
+\end{verbatim}
+
+The old instance's copy was the same expression with \texttt{::BIGINT} in place of \texttt{::UUID}. The identity fix changed what the tiebreak is made of and changed nothing else here, which is the point of this section: the wipe replaced every id in the database and left this defect exactly where it was.
+
+``Latest outcome wins'' is implemented as \texttt{ORDER BY rx.t DESC, rx.i DESC}. \texttt{t} is \texttt{TIMESTAMPTZ DEFAULT now()}, a wall clock. \texttt{i} was a per-machine counter (Ch.~11) and is now a \texttt{uuidv7}, which is globally unique and sorts by the millisecond that minted it. So the total order that decides whether a relation is retracted is a wall clock with a tiebreak made of a different reading of the same wall clock, and the whitepaper's own section~10 says do not trust the clocks.
+
+Two failure modes, and they are different. If the instrument PC's clock is 90 seconds fast, Bob's correction, entered after Alice's on a correct clock, sorts \emph{before} hers, and the retraction that should have won loses. That is a correctness failure and it is silent. Separately, if two outcomes land in the same microsecond, the tiebreak is \texttt{i DESC}, and \texttt{i} means nothing across machines, so two copies that merged in different orders could in principle disagree. The second is fixable; the first is not, by any naming scheme.
+
+And UUIDv7 does not rescue this. That was worth saying when UUIDv7 was a proposal, and it is worth saying more carefully now that it is not merely merged but running, because a fix that shipped invites more over-reading than one that was only sketched. A UUIDv7 embeds a wall-clock millisecond in its high bits. Sorting by it is sorting by the clock that minted it. What was gained is that the second failure mode is closed: \texttt{i} is globally unique and time-ordered, so the tiebreak is deterministic given the timestamps you have. \textbf{Deterministic is not correct.} Both machines will agree on the answer, and the answer may be the older correction. The first failure mode is untouched, and it is the one that loses data. Nor does the universal frame rescue it: \texttt{t\_universe} is the same wall clock plus a declared constant, and adding an exact number to a wrong one does not improve it.
+
+The stem cell's own comment on this needs one correction, because it is the kind of sentence that gets quoted. It says the time-ordered ids are ``a free tiebreak that does NOT require trusting that two machines' clocks agree, because nothing downstream reads ordering as truth.'' The first clause is right. The last is not: \texttt{r\_active} reads ordering as truth, and it is the only place retraction is decided. \texttt{ORDER BY rx.t DESC, rx.i DESC} is a claim that the row sorting first is the one that meant it, and \texttt{i} is consulted whenever \texttt{t} ties. Something downstream does read ordering as truth, and it is the view everything else is built on.
+
+\begin{Open}{Cross-machine ordering}{Settled by writing down the intended total order, implementing it in \texttt{r\_active}, and then demonstrating determinism and correctness under skew as two separate experiments.}
+The candidates are UUIDv7 plus a per-machine marker, a Lamport or hybrid logical clock carried in \texttt{d}, or a version vector. Whichever is chosen, two properties have to be shown separately. Determinism: two copies that merged in different orders return the same \texttt{r\_active}. The live instance now plausibly has this and it has not been demonstrated, because demonstrating it needs two copies and a merge, and there is no channel to merge over. Correctness under skew: a correction entered later in real time wins even when the minting machine's clock is fast. This one no naming scheme passes, UUIDv7 included, and it is the experiment that matters.
+\begin{Check}
+-- The skew experiment, on one instance, by forcing t rather than waiting for a bad clock.
+INSERT INTO r (o1,o2,d) VALUES (:scan,:sa12345,'{"type":"same"}') RETURNING i;   -- call it W
+-- Alice retracts on a correct clock at 10:00:00
+INSERT INTO r (o1,o2,d,t) VALUES (:scan,:scan,'{"type":"outcome","of":W,"verdict":"retracted"}','2026-07-16 10:00:00+00');
+-- Bob un-retracts at 10:00:30 real time, but his PC's clock is 90 seconds fast
+INSERT INTO r (o1,o2,d,t) VALUES (:scan,:scan,'{"type":"outcome","of":W,"verdict":"upheld"}','2026-07-16 10:02:00+00');
+SELECT count(*) FROM r_active WHERE i=W;   -- 1: Bob wins, and here he should
+-- Now reverse the real-time order: Bob first at 10:00:00, Alice second at 10:00:30
+-- With Bob's clock still 90s fast, his row stamps 10:01:30 and sorts AFTER Alice's 10:00:30,
+-- so the later correction loses. Same query, wrong answer, no error.
+\end{Check}
+\end{Open}
+
+\subsection{3. ``Conflict-free'' collides with a rule written four days later}
+
+The whitepaper is dated 2026-07-12. \texttt{divergence-is-data-v1} was inserted 2026-07-16, and its \texttt{implies} field reads: ``Google Docs / OT / CRDT are rejected as the document model. The model is branching op-log: Everett, not Copenhagen.''
+
+Read carelessly, the whitepaper's ``merge without conflict'' and ``guaranteed-consistent union'' is exactly the CRDT pitch the rule rejects, from the same vocabulary, four days earlier. Read carefully, the whitepaper is on the rule's side: ``Real disagreement is kept, not lost, and settled identically everywhere,'' and both records survive.
+
+So the two documents agree and their words fight. The line the whitepaper does not draw, and the book must:
+
+\begin{quote}
+Convergence of the row-set is a theorem, and it is desirable. Convergence of the interpretation is forbidden.
+\end{quote}
+
+Those are two different objects wearing one word. The CRDT literature's ``conflict-free'' means the second: strong eventual consistency resolves the conflict silently at write time and the resolved-away divergence is unrecoverable. The rule's note calls that ``DELETE wearing a nice hat, and it destroys the only data that can fit the law.'' The whitepaper's ``conflict-free'' means the first: there is nothing to conflict over because nothing was ever changed. Same phrase, opposite commitments. Ch.~15 owns the argument for why the second convergence is refused; this chapter only marks the collision so nobody reads section~7 as a CRDT endorsement.
+
+\subsection{4. Compression and merge have never been introduced}
+
+\texttt{r} is a hypertable. From \texttt{stem-cell.sql}, and verified live after the reboot:
+
+\begin{verbatim}
+ALTER TABLE r SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'b',
+  timescaledb.compress_orderby   = 't DESC'
+);
+SELECT add_compression_policy('r', INTERVAL '30 days');
+\end{verbatim}
+
+Now consider the case the whole design is for: the \labColdSystemShort PC has been off the network for two months during a \labRun. It reconnects and pushes its rows. Those rows carry \texttt{t} values from two months ago, so they belong in a chunk that the central copy compressed six weeks back.
+
+The whitepaper's answer to arrival-order questions is ``the record can arrive before or after its bytes and nothing breaks in between.'' That is about the two channels, and it is correct, and it says nothing at all about arriving after the chunk compressed. Recent TimescaleDB versions permit inserts into compressed chunks, but permit is not the same as costed, and nobody has run it here. The question is unaddressed in the whitepaper, in \texttt{DESIGN.md}, and in every rule row.
+
+\begin{Open}{Backfill into a compressed chunk}{Compress a chunk on a copy, then backfill into it and measure what breaks.}
+The experiment is cheap and has not been run. Take a copy, let the 30-day policy compress a chunk, insert a few thousand rows whose \texttt{t} lands inside that chunk's range, and record four things:
+
+\begin{Check}
+-- 1. does the insert succeed at all?
+-- 2. what does it cost?
+-- 3. what does it do to the chunk's compression ratio?
+-- 4. does r_active's correlated subquery still find the outcome rows?
+\end{Check}
+\end{Open}
+
+\subsection{5. There are no branches, and the compression rationale is backwards on the live data}
+
+This is the one that changes what you think the system is. Queried live 2026-07-16 and re-checked on 2026-07-17 before the wipe, unchanged across both:
+
+\begin{verbatim}
+select count(*), count(distinct b) from r;
+ 256619 | 256619
+\end{verbatim}
+
+The rows-per-branch histogram had exactly one bin: 256,619 branches of one row each. Every row in the database took the \texttt{gen\_random\_uuid()} default. \textbf{No two rows ever shared a branch.} The branch column was not a branch column; it was a per-row random identifier that nothing read.
+
+Those numbers are now history in the strict sense: they describe the universe that ended on 2026-07-17, and the query that produced them is reproducible only against the archived dump. The live instance answers \texttt{0 | 0}, which refutes nothing and confirms nothing. Do not read the wipe as having addressed this. The column, its default, the \texttt{compress\_segmentby = 'b'} setting, and the comment justifying it all came through the big bang unchanged, because they are in the stem cell and the stem cell is what the instance was born from. What was lost is the evidence that the setting is wrong. What was kept is the setting.
+
+Take that number to the compression setting. \texttt{compress\_segmentby = 'b'} groups rows into segments by branch, and the comment explains why: ``Compression segmented by branch (near-duplicate branches compress well).'' On the corpus that existed, segmenting by \texttt{b} would have produced 256,619 segments of one row each, which maximizes the segment count and defeats the columnar compression the setting was chosen to enable. Columnar compression pays off when a segment has many rows whose columns are similar. There, every segment would have held one row. The comment describes near-duplicate branches, and there were no near-duplicate branches, because there were no branches.
+
+\texttt{stem-cell.sql} builds on this and goes further, in words that are in the live instance's own genome today: ``This is what makes \texttt{divergence-is-data-v1} affordable: keeping every losing branch forever costs little when the branches are near-duplicates.'' That sentence is the affordability argument for the book's central epistemic commitment, keeping everything, and its premise was not instantiated anywhere in the corpus that existed. It is not instantiated in the one that does not yet exist either.
+
+And the setting has never been exercised at all. Before the wipe: compressed chunks 0 of 1, because the corpus was ingested 2026-07-04 and 2026-07-05 and nothing had reached 30 days. After it: 0 of 0, because \texttt{r} is empty and a hypertable with no rows has no chunks. The policy job survived the reboot and is scheduled every 12 hours with \texttt{compress\_after} of 30 days, and it has nothing to do. \textbf{Compression has never run. Not once, in either universe.} Every claim in this project about compression making retention cheap is a prediction, and the wipe reset the clock on ever testing it: the earliest a chunk can now age out is 30 days after \labPI re-introduces the first rows.
+
+\begin{Open}{Compression economics}{Let the policy run past 30 days on real data and measure the chunk size ratio.}
+The decision that follows the measurement is whether \texttt{segmentby='b'} survives a corpus in which \texttt{b} is a per-row random UUID, which is the worst possible key for a segment-by and is what \texttt{b} has been on every row ever written.
+The honest expectation is that it does not, and that the right segment key is something with real cardinality structure (\texttt{d->>'type'}, or \texttt{o1}), or none at all. Until the measurement exists, both the setting and its rationale are untested. The first two queries produced the numbers above on the old instance and are now answerable only against the archived dump; the third is answerable today and answers \texttt{0 | 0}; the fourth has to wait for a chunk to exist and then to age past 30 days, or be forced.
+\begin{Check}
+-- What b actually was, on the universe that ended 2026-07-17.
+-- Reproducible now only from ydb-pre-bigbang-2026-07-17.dump.
+SELECT count(*), count(DISTINCT b) FROM r;                   -- 256619 | 256619
+-- How many segments segmentby='b' would have built, and how big each one is
+SELECT count(*) AS rows_per_branch FROM r GROUP BY b ORDER BY 1 DESC LIMIT 1;   -- 1
+-- Has compression ever run? Live, post-big-bang: no chunks at all.
+SELECT count(*) FILTER (WHERE is_compressed) AS compressed,
+       count(*) AS total
+  FROM timescaledb_information.chunks WHERE hypertable_name='r';   -- 0 | 0
+-- The measurement that settles it, once there is data and a chunk is old enough
+SELECT compress_chunk(:chunk);
+SELECT before_compression_total_bytes, after_compression_total_bytes
+  FROM chunk_compression_stats('r');   -- the ratio nobody has ever seen
+\end{Check}
+\end{Open}
+
+Note what this does to the merge story. The whitepaper's argument does not depend on branches, so it survives intact. But the retention argument does, and \texttt{divergence-is-data-v1}, which is still in the instance and still says it, says ``Simultaneous edits produce distinct branches (\texttt{r.b}); every branch is retained and none is privileged.'' Every branch was indeed retained. There has never been a branch in the sense the rule means, in either universe. Ch.~15 has more to say about what \texttt{b} would need in order to mean anything.
+
+\section{The two channels}
+
+The decoupling argument is sound and should be kept. From the whitepaper:
+
+\begin{quote}
+One channel carries the records, pushing each machine's new records up to the center, where they are added if not already present, which is safe because records never change and their names are unique. The other channel carries the file bytes to the central store, skipping anything already there by fingerprint. Because a reference is only a fingerprint, the record can arrive before or after its bytes and nothing breaks in between.
+\end{quote}
+
+Channel A carries \texttt{o} and \texttt{r} rows. Channel B carries content-addressed bytes. They need no ordering relation between them, and the reason is exactly right: a reference is a fingerprint, a fingerprint is computed from content, and a reference's validity does not depend on the bytes being anywhere in particular. The \labInstrumentShort scan's record can land in the lab copy on Monday and its 400 MB of bytes on Thursday, and nothing in between is broken.
+
+This is the same insight as \texttt{oplog-vs-blob-v1}, arrived at four days earlier from a different direction. The whitepaper argues it from \emph{reference semantics}; the rule argues it from \emph{concurrency}. Do not retroject the concurrency criterion onto the whitepaper. It is not there, and the fact that two independent arguments landed on the same separation is more interesting than a false lineage would be.
+
+Four gaps to name, none of which the whitepaper addresses:
+
+No transport is specified. No authentication is specified, and the moment the lab group is on this, ``who may push rows to the center'' is a real question with a real answer that nobody has written. No back-pressure: an instrument that has been capturing for two months pushes a lot at once. And no story for a fingerprint whose bytes never arrive. The whitepaper treats that case as harmless, and it is harmless for the \emph{reference}, which stays permanently valid and permanently unresolvable, and useless for the person who wants the scan.
+
+\begin{Analogy}{A dangling fingerprint is harmless}{Breaks at the difference between a name and a thing: the reference stays perfect and the bytes are still missing.}
+The reference is fine forever. It is self-certifying, it can be compared, deduplicated, and cited, and no operation on the graph fails. But the object it names is not in the lab. A student querying for the March \labRun's \labInstrumentShort scans gets a row, a hash, a size, an instrument, and no image.
+
+Content addressing makes reference-integrity independent of byte-availability, which is a real and useful decoupling. The whitepaper reads that decoupling as saying the byte-availability problem went away. It did not. It was moved to channel B, where nothing currently monitors it. The honest version: a dangling fingerprint never corrupts the database and always disappoints the person.
+\end{Analogy}
+
+\section{Where the humans have to be}
+
+The whitepaper is the only document in the corpus that names a human gate, and it names exactly four. Quoted intact, because the list is the point:
+
+\begin{quote}
+Four decisions genuinely need a meeting, and the agenda should be only these: where the store lives, how large it is, and where its offsite backup goes; which instrument is first; who owns and runs the capture agent; and the retention and consent policy for any camera images that contain people. Everything else is engineering that can proceed without the group.
+\end{quote}
+
+That is a good list and a short one, and reducing a lab project to four decisions is most of what makes the plan startable. Two observations about the plan around it.
+
+The first is Ch.~11's, restated because it lands here and because it has resolved. Step 1 is described as needing ``one person and no meeting,'' and step 1 includes the globally-unique-names change. On 2026-07-17 that change was made, by one person, with no meeting, and the \texttt{uuidv7()} Postgres 17 does not ship was written out in the file in about fifteen lines. Later the same day the same person, with the same absence of a meeting, ended the universe the old names lived in and started a new one. So the whitepaper was right that step 1 needs no group, and this book was right that it was not free, and the cost turned out to be small in code and large in data, which is a distinction the plan does not have a column for.
+
+What the plan does not cost is the decision that actually got made. ``One person and no meeting'' was true of the fix and true of the wipe, and the wipe discarded 178,561 objects. The whitepaper's four-decision list is a good list of what needs a meeting before the lab is on the system. It has nothing to say about what one person may do to the only copy once the lab is, and that gap will stop being theoretical the first time an instance holds someone else's data. The right reading is not that the wipe was reckless: it was correct, and the archive and the surviving sources are why. It is that ``no meeting'' was load-bearing on the corpus having exactly one stakeholder.
+
+The second is this book's, and it governs Part III. The plan's last step, sixth of six, ``begins measuring how reliable each source and each kind of connection is.'' That is the calibration step: \texttt{source-as-instrument-v1}, \texttt{staleness-decay-v1}, and the linear-versus-Born fit that \texttt{divergence-is-data-v1} exists to preserve the corpus for. \textbf{Everything Part III says about fitting the consensus law depends on step 6 of 6.} The measurement that decides whether the project's central epistemic claim is right is scheduled after the enrichment pass, after the sync channels, after the bridge, and after the capture agent. The identity fix, which was the first of those and the one that had not started, is now done. The consensus rule row still reads \texttt{status: seed-prior} in the live instance, and it reads it over zero witnesses.
+
+\section{What this chapter establishes}
+
+The row-set converges, and that is a theorem, imported. Local-first is right, and the instrument PC never waits. The two channels decouple correctly, for the right reason, arrived at independently twice. The theorem's precondition is met: names are globally unique without coordination, content is named by its content, an instance is named by its own birth, and all of that is now true of the instance that runs rather than of a file. The whitepaper's section~7 asked for one thing and has it.
+
+And: nothing has ever been merged, because the channels do not exist and the instance that would merge holds ten objects and no relations. Latest-wins is not confluent across two clocks, the whitepaper says so in section~10 while denying it in section~7, and neither UUIDv7 nor a universal time frame touches the failure that loses data. The branch column is inert, and the compression rationale that makes retention affordable had no data behind it in the old universe and has none in the new one, and has never run in either. Backfill into a compressed chunk is unexamined. ``Conflict-free'' is one phrase covering two commitments, one of which this project holds and one of which it forbids.
+
+The origin move deserves its own line, because it is the only operation in this design that removes history and it will be tempting again. Defining a big bang dissolved the migration problem instead of solving it, and it did so honestly: the old universe is on disk, the new one is a different system rather than the old one with rows deleted, and ``nothing is ever deleted'' remains true inside every universe. But it worked because it was performed at birth on a corpus one person owned and could rebuild from its sources. That is the whole warrant, and it expires.
+
+None of that makes the design wrong. It makes the design unmeasured, which is a different and more fixable condition, and it is the condition most of this book is about. The wipe did not change that. It reset the clock on it.

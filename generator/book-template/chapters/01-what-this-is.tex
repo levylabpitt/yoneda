@@ -1,0 +1,271 @@
+\chapter{What This Is, and Why Two Tables}
+
+\section{One container, two tables}
+
+Yoneda is a Postgres container. You boot your own copy, it is empty, and it is yours. Inside it there are two tables. The first is called \texttt{o} and holds objects. The second is called \texttt{r} and holds relations between objects. That is the whole schema. There is no third table, there is no table for samples, there is no table for \labRuns{}, there is no table for measurement points, and there is not going to be one.
+
+Boot it now. Docker Desktop is the entire dependency list:
+
+\begin{verbatim}
+cd stem-cell
+docker compose up -d
+docker exec -it yoneda psql -U postgres -d yoneda
+\end{verbatim}
+
+First boot takes about twenty seconds. What you have at the end of it is two tables (\texttt{o}, \texttt{r}), three views (\texttt{consensus}, \texttt{r\_active}, \texttt{blobs}), two functions you will use constantly (\texttt{component()}, \texttt{realize()}), and ten rows in \texttt{o}. Nine of the ten are rules. Not in a config file, not in a comment: as rows, in the same table as your data, queryable alongside it. That is deliberate and Chapter 9 is about why. The tenth row is the moment your container was brought to life, written once, at boot, and it is what your instance is named by.
+
+Ask it what it contains and the answer is ten, zero, and nine names. Everything after this point is you putting things in it.
+
+\begin{Correspondence}{A fresh instance is nine rules and a birth certificate}{Count both tables, list the rule names, and ask the container who it is, immediately after \texttt{docker compose up -d}.}
+Every claim in this book that has a number attached is a query, printed next to the claim, and runnable by you. If a number in this book disagrees with the number your container returns, your container is right and the book is stale. That is the correct relationship between a document and a running system, and it is not the relationship most documentation has. It is also why Part I almost never quotes a statistic from a populated instance: a number from somebody else's database is not a fact you can check, it is a fact you have to take on faith, and taking things on faith is the thing this book is trying to get you out of. Section~\ref{sec:defects} quotes two counts from a database that no longer runs, and says so where they appear. They are the only numbers in Part I you cannot reproduce, and what they measure is what it cost to get rid of them.
+\begin{Check}
+SELECT count(*) FROM o;                              -- 10
+SELECT count(*) FROM r;                              -- 0
+SELECT j->>'name' FROM o WHERE j->>'type'='rule';    -- 9 names, one per row
+SELECT instance_id();                                -- a UUID: the tenth row, and who you are
+SELECT age();                                        -- seconds since your container was born
+\end{Check}
+Your database contains its own constitution and the record of its own birth, and nothing else. Those last two functions are worth a sentence now and a chapter later. \texttt{instance\_id()} is not reading an instance-id column, because there is no such column and no config file holding a name. It returns the identity of the birth row itself, which is a UUID minted at boot and unique across every machine that ever boots this thing, without any of them having to coordinate. The instance \emph{is} its birth event. That is the same move the rest of the design makes everywhere: an identity is not stored, it is computed from something that was witnessed.
+\end{Correspondence}
+
+\section{What it is for now}
+
+The reason this book exists is that the lab is about to put instrument data in it. We run \labColdSystem{} and \labMagnet{} on \labLocation{}. The measurement software writes \labFileFormat{} files. The \labInstrument{} writes scans. The samples are \labMaterialShort{} \labSampleClass{}. A \labRun{} takes days, produces gigabytes, and at the end of it a tired person has to decide where to put the files, and usually the decision is a folder named after the date and, if you are lucky, a lab notebook entry.
+
+The pitch, in one sentence: save the file the moment it exists, name it by its own fingerprint, and add the meaning afterward as relationships. No sorting, no schema, no meeting. Chapter 3 is that chapter, and it is the one the group actually needs.
+
+Here is the whole shape of it, running, on the instance you just booted. A sample, an instrument, a \labRun{}, four gigabytes of sweep, and the provenance tying them together:
+
+\begin{Check}
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"!\labSample!","growth":"2026-04-17"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"SR830-4821","model":"SR830"}');
+INSERT INTO o (j) VALUES ('{"kind":"cooldown","fridge":"leiden","started":"2026-07-14"}');
+
+SELECT blob('674f6087d2831e45847f41312ed9af0757a4b16c85596b3ce0b1e792dced7111',
+            '{"media_type":"application/x-hdf5",
+              "bytes":4294967296,"points":10000000}');
+
+INSERT INTO r (o1, o2, d)
+  SELECT b.i, s.i, '{"type":"measured"}'
+  FROM o b, o s
+  WHERE b.j->>'id'='674f6087d2831e45847f41312ed9af0757a4b16c85596b3ce0b1e792dced7111'
+    AND s.j->>'id'='!\labSample!';
+\end{Check}
+
+The hash is written out in full because \texttt{blob()} will not take anything else. Sixty-four hex characters or it raises, and the reason it raises is defect two in Section~\ref{sec:defects}.
+
+Ten million points, four gigabytes, one row. The bytes are not in the database and never will be: they sit in a content-addressed store on disk, and \texttt{o} holds a reference to their sha256 hash. This is rule \rulerow{oplog-vs-blob-v1}, and it is the one rule most likely to be violated by accident. The dividing line is concurrency, not size. Nobody co-edits a \labColdSystemShort{} sweep, so it is a blob. A lab notebook entry three people are editing at once is not.
+
+Note what the hash buys you. It is the file's identity, so re-ingesting the same bytes is silently recognized rather than duplicated, and two machines that capture the same file independently produce the same name with no coordination. A \emph{path} gets none of this, because a path is a lie waiting to happen: files move, get overwritten, get re-saved by the DAQ under the same name with different bytes. So a path can never be an identity here. It enters as \texttt{blob\_seen\_at(hash, path, host)}, a dated observation of where the bytes were last seen. Reorganize your folders all you like; nothing breaks.
+
+But the pitch has a cost, and the cost is why a book instead of a README. Putting your data somewhere is a bet that the somewhere is correct. So this book is written to let you audit the bet rather than take it. That means it has to be honest about a system that is, right now, three different things at once.
+
+\section{The honest frame}
+
+\textbf{This book documents a system that is partly running, partly designed, and partly wrong, and it labels which is which.}
+
+That sentence is the book's whole method. The substrate runs, and so does the instrument lineage: you just booted both, and \texttt{differentiate-instrument.sql} was applied for you on the way up. Read it, because the interesting thing about it is what it does not contain. It creates zero new tables. Not one. Everything an instrument needs turned out to be conventions and a little sugar over the two tables that were already there. If you ever find yourself writing \texttt{CREATE TABLE measurements}, stop: you are about to put a ten-million-point sweep into \texttt{r}.
+
+What does not run is the part that matters most for a group: many machines. The design is local-first, an instrument PC should keep working when the network is down, and merging append-only copies ought to be trivial. Until 2026-07-17 that was blocked by something embarrassingly small, a counter. The counter is gone, and this time it is gone everywhere, because the only instance that still carried one was ended that same day and the instance that replaced it was born without one. That removes the blocker and delivers nothing. No sync channel exists. Nothing in Chapter 12 has been built. No two copies of this system have ever been merged, or tried. What changed is that the obstacle is now the work rather than the design, and those are not the same milestone however much the second one wants to be mistaken for the first.
+
+And parts of the surrounding prose are simply wrong. Rather than list those here, Section~\ref{sec:defects} gives you five of them with the command to check each, so you can grade the claim yourself instead of taking my word for the grading. All five are gone as of 2026-07-17: four were repaired, and the fifth went away by a route that deserves its own paragraph and gets one. That section prints what you should now see beside what it used to say.
+
+This is not humility and it is not confession. A book about a data system that does not distinguish its running parts from its aspirational parts is worthless to the person deciding whether to trust it with three days of \labColdSystemShort{} time.
+
+The mechanism is four tiers, and every non-obvious claim in this book carries one. Here they are, demonstrated on this system, one claim each. If you understand these four boxes you can read the rest of the book.
+
+\begin{Theorem}{The union of two append-only record sets does not depend on the order you merge them}{Shapiro, Pregui\c{c}a, Baquero, Zawirski, \textit{Conflict-free Replicated Data Types}, SSS 2011.}
+A grow-only set is the canonical state-based CRDT: union is associative, commutative, and idempotent, so the merge of any collection of replicas is a join in a semilattice. The result is theirs, not this project's.
+This is a real theorem and it is not ours. It is imported, and it is the reason local-first storage is the right design here rather than a compromise: two machines that only ever add records cannot produce a merge that depends on who went first, on how many times you merged, or on how long one was offline. Note what the theorem does \emph{not} say. It says the row set converges. It says nothing about whether the two machines agree on what is true. Chapter 12 is about that gap, and it is wider than it looks. Note also what the theorem does not do: it does not give you the identity columns you need to make the union well defined. It assumes them. Supplying them was defect three in the next section, and the container you booted now has them, which is a precondition for the theorem to apply and is not the same thing as having built the merge.
+\end{Theorem}
+
+\begin{Correspondence}{Nothing is ever deleted; a retraction is a row, not an erasure}{Insert a witness, retract it, and count it in both views on your own instance.}
+A correspondence is a claim about structure that you can check by running something, and that checks out. A retraction adds a row that points at the witness. The witness itself is never touched, which is why the raw table and the filtered view disagree afterward.
+\begin{Check}
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"S1"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"D1"}');
+INSERT INTO r (o1,o2,d)
+  SELECT a.i, b.i, '{"type":"measured"}' FROM o a, o b
+  WHERE a.j->>'id'='S1' AND b.j->>'serial'='D1'
+  RETURNING i;
+SELECT count(*) FROM r_active;         -- 1
+SELECT retract('<i>', 'lock-in reference miswired');
+SELECT count(*) FROM r_active;         -- 0, the retraction took effect
+SELECT count(*) FROM r WHERE i='<i>';  -- still 1, nothing was deleted
+\end{Check}
+The retracted witness never left the table. You do not fix a wrong record in this system; you add a record saying the wrong one is wrong, and a view filters it out. The bad run stays in \texttt{r} forever, and it is not clutter, it is the calibration data: a system that lets a student silently vanish a bad sweep cannot ever tell you how often that student's sweeps go bad. Chapter 4 is this mechanism in full. It is the strongest thing in the system and the place where the design document, the checked-in code, and the running database all agree, which is rarer than it should be.
+
+One casualty is worth recording, because it cuts the other way from every other change in this chapter. Earlier drafts closed this check with \texttt{SELECT count(*), max(i) FROM o} and observed that the two are equal on an untouched instance, so a gap between them proves a row was removed. That audit is gone. It only ever worked because \texttt{o.i} was a dense integer counter, which is the defect fixed in Section~\ref{sec:defects}, and under a UUID there is no counter to compare the count against. The audit was a side effect of a bug, and fixing the bug cost it. Detecting a deletion is now a job for Postgres permissions and for the append-only discipline itself, not for arithmetic, and that is a genuine loss rather than a wash.
+\end{Correspondence}
+
+\begin{Analogy}{Everett, not Copenhagen}{In Everett every branch is realized and none is selected; \texttt{realize()} selects one, which is the Copenhagen move wearing the other name.}
+The analogy breaks twice, and the second break is checkable. The branch column \texttt{r.b} defaults to a fresh random UUID, so every row lands in a universe of its own unless you deliberately name a branch. No two rows share a branch, so no superposition ever forms, and interference is not merely absent but unrepresentable. The slogan describes a system nobody has run.
+\begin{Check}
+INSERT INTO r (o1,o2,d)
+  SELECT a.i, b.i, '{"type":"measured"}' FROM o a, o b, generate_series(1,3)
+  WHERE a.j->>'id'='S1' AND b.j->>'serial'='D1';
+SELECT count(*), count(DISTINCT b) FROM r WHERE d->>'type'='measured';
+--   4 and 4: one branch per row, and the fourth row is the witness you
+--   retracted in the previous check, which is still there and always will be
+\end{Check}
+The quoted phrase is not mine in this book's voice; it is a field in a live rule row, \rulerow{divergence-is-data-v1}, and reads in full: ``Google Docs / OT / CRDT are rejected as the document model. The model is branching op-log: Everett, not Copenhagen.'' The rejection may well be right, and Chapter 15 argues that it is: no write path may force convergence, concurrent authors produce branches, every branch is kept, and merge is a deliberate \texttt{realize()} that leaves both parents standing. The physics slogan attached to it is decoration, and the decoration is checkable, and it fails. That is what an analogy tier is for: keeping a useful phrase while refusing to let it do argumentative work it cannot do.
+\end{Analogy}
+
+\begin{Open}{The consensus law}{Settled by running a corpus that populates the value field and fitting the exponent against preserved disagreement.}
+The view that renders this law is waiting on data none of us has fed it. Nothing in the instrument lineage writes a \texttt{v}, so the field the law averages over is empty on your instance and will stay empty.
+\begin{Check}
+\d+ consensus                            -- reads r_active, and computes
+                                         -- sum((d->>'v')::REAL * c) / sum(c)
+SELECT count(*) FROM r WHERE d ? 'v';    -- 0 on a fresh instance, and nothing
+                                         -- in the lineage will ever raise it
+SELECT jsonb_pretty(j) FROM o            -- the law itself, as a row:
+ WHERE j->>'type'='rule' AND j->>'name'='consensus';
+--   "law": "linear"
+--   "definition": "truth = sum(v*c)/sum(c) per (type,o1,o2)"
+--   "status": "seed-prior"
+\end{Check}
+When two sources disagree about a fact, how do their confidences combine into an answer? This rule row used to be the first row a container ever wrote, and earlier drafts of this chapter told you to confirm that with \texttt{ORDER BY i LIMIT 1}. Do not. It was never safe, and the reason is worth a sentence of its own, because the draft before this one made the same mistake in the other direction: it said the first row is now \rulerow{universal-epoch-v1}, which is what the genome writes first and what nineteen boots out of twenty return. Two of nineteen returned \texttt{consensus}. The two inserts land in the same millisecond, the random bits break the tie, and roughly one boot in ten the declared origin of time is not the first row in the table. Read nothing into the order at all. The identifiers are time-ordered only to the millisecond, and the bootstrap writes all nine rules inside about ten of them, so any two rules sharing a millisecond sort differently on the next boot; I have watched \texttt{boundary-ref-v1} and \texttt{consensus} swap places between two containers started a minute apart, and I have now watched the epoch row itself lose the coin flip. That is not a defect, it is what the genome says out loud: nothing downstream is allowed to read ordering as truth, precisely so that no one has to trust that two machines' clocks agree. What is mildly humbling is that this book twice wrote down an order it had observed once and called it a fact, which is the exact error the design is built to refuse. Address a rule by its name. Its status field says \texttt{seed-prior}, which means: this is a guess, marked as a guess, awaiting replacement by a measurement. The candidate alternative is quadratic, weighting by $c^2$ rather than $c$, which is the Born rule's shape. Nobody has fit it, and you will not fit it from a fresh instrument instance either, because the fit needs a corpus where many sources disagree about the same claim and the disagreements were preserved. Your \labColdSystemShort{} does not disagree with itself. Chapter 19 is the case study on a corpus that does, and Chapters 16 and 17 take the question apart properly; Chapter 16 asks whether the exponent is even free, and the answer is more interesting than I expected. For now the honest statement is that the law at the center of this system is unmeasured.
+\end{Open}
+
+Four claims about one system, four different epistemic statuses, and the difference between them is the difference between a book you can build on and a pitch. Default to the weaker tier. It is much worse to call an analogy a theorem than to call a theorem an analogy, and the rest of this book is largely me doing the second thing to my own prose.
+
+\section{Defects you can check yourself}
+\label{sec:defects}
+
+This system is running and it had real bugs. This section named five. On 2026-07-17 all five stopped existing: four were repaired, and the fifth was removed by ending the universe that contained it, which is a different thing and gets its own paragraph below. So every check printed here now passes on the container you booted. That is a weaker teaching position than the one this section had a week ago, not a stronger one, because a book whose checks have only ever passed teaches you nothing about whether the checking was real. So each item prints what the check used to return next to what it returns now, and you are entitled to distrust the first number, since you cannot run it.
+
+That is not a rhetorical concession. One boundary runs through this whole section. The numbers this section used to quote came from the author's populated instance, called \labLineageName{}, which held \labLineageObjects{} objects and \labLineageRelations{} relations and is the corpus behind Chapter 19. That instance does not run any more. It is a file: \texttt{\labLineageDump}, \labLineageSize{}, frozen on a disk in \labLineagePlace{}. Nothing in it was lost, and nothing in it is something you can check. Those two counts are the exceptions promised at the top of this chapter, and they are the last of them.
+
+The interesting thing here is not that four bugs were fixed. Bugs get fixed. It is that the book named them precisely enough that fixing them was a small job, and, in the fifth case, that naming it precisely was what made it obvious that it could not be fixed at all.
+
+\textbf{One: the consensus view averaged over retracted rows.} The rule is that every computed view reads \texttt{r\_active} and never raw \texttt{r}, because \texttt{r} still contains every witness anyone ever retracted. The \texttt{consensus} view broke that rule in its own last line. The cause was ordering, and nothing more interesting than ordering: \texttt{r\_active} was defined after \texttt{consensus} in the old \texttt{schema.sql}, so at the moment \texttt{consensus} was written the view it should have read did not exist yet, and \texttt{FROM r} was the only thing that would parse.
+
+\begin{Check}
+\d+ consensus            -- last line now reads: FROM r_active
+                         -- it used to read:     FROM r
+\d+ r_active             -- and this is now defined BEFORE consensus in
+                         -- stem-cell.sql, which is the entire repair
+\end{Check}
+
+The size of what it was doing is the part you cannot check, and it is worth printing anyway: on the archived instance raw \texttt{r} held \labLineageRelations{} rows against \labLineageActive{} in \texttt{r\_active}, so \labLineageRetracted{} retracted witnesses were being averaged into a law that exists to weigh evidence. Every retracted witness voted. The one view that renders the system's central claim was the one view ignoring the system's central amendment. Note the boundary the repair does not cross: a view that reads the correct table is not a law that is correct. This one still computes an unfit formula, correctly now, over an empty column.
+
+\textbf{Two: \texttt{blob()} could be made to lie.} The function built a content-addressed reference by merging your metadata onto the hash with the \texttt{||} operator, and \texttt{||} lets the right operand win. Passing a \texttt{meta} object carrying an \texttt{id} key overwrote the hash the function existed to address. The repair is two lines and reverses the operands: \texttt{meta} is now the base and the computed fields are written over it, so a caller can still pass junk but cannot overwrite the identity with it. A second check was added at the same time, and it is the blunter of the two: a sha256 is 64 hex characters, and anything else is not a fingerprint.
+
+\begin{Check}
+SELECT blob('9f2bc1');
+--   ERROR: blob(): sha256 must be 64 hex characters, got '9f2bc1'
+--   it used to accept this and mint a ref to it
+
+SELECT blob('674f6087d2831e45847f41312ed9af0757a4b16c85596b3ce0b1e792dced7111',
+            '{"id":"NOT-THE-HASH"}');
+SELECT j->>'id' FROM o
+ WHERE i = uuid_from_sha256('674f6087d2831e45847f41312ed9af0757a4b16c85596b3ce0b1e792dced7111');
+--   674f6087...7111: the hash, not NOT-THE-HASH
+--   it used to return NOT-THE-HASH, and the hash was gone
+\end{Check}
+
+It mattered because content addressing is the load-bearing claim of Chapter 3. The whole argument for hashes over paths is that the name is a function of the bytes, and there was a caller-supplied key that severed the name from the bytes with no error and no trace.
+
+\textbf{Three: two instances both minted object 1.} \texttt{o.i} and \texttt{r.i} were \texttt{BIGINT} identity columns, which is to say per-machine counters, and two copies each called their first object 1. The fix was known, was written down, and on 2026-07-17 was applied: mint names that are unique without coordination, the content hash for anything that is a function of its bytes and a time-ordered UUID for everything else. \texttt{o.i} is now \texttt{uuidv7()}, and blobs get a UUID derived from their sha256.
+
+\begin{Check}
+SELECT pg_get_serial_sequence('o','i');   -- empty: there is no sequence
+                                          -- it used to name one
+\d o                                      -- i: uuid, DEFAULT uuidv7()
+                                          -- it used to be bigint IDENTITY
+INSERT INTO o (j) VALUES ('{"kind":"probe"}') RETURNING i;
+--   a uuidv7, different on every copy in the world
+--   it used to be 9, on every copy, meaning nine different things
+\end{Check}
+
+The negative check is the easy half. The positive one is worth the two minutes it costs, because it is the property the whole distributed design rests on and you can have it today, with two containers and no network between them:
+
+\begin{Check}
+SELECT uuid_from_sha256('674f6087d2831e45847f41312ed9af0757a4b16c85596b3ce0b1e792dced7111');
+--   674f6087-d283-8e45-847f-41312ed9af07, on this instance and on every
+--   other one, forever, with no coordination of any kind
+\end{Check}
+
+Two machines that capture the same file give it the same name without talking to each other, so the union of two instances holds that blob once. I have run that on three separate containers. What it is not is a merge: nothing sends a row anywhere, and Chapter 12 remains unwritten code. This is the precondition, and it now holds.
+
+\textbf{Four: the founding document asserted a premise the implementation lacked.} Section 5 of \texttt{DESIGN.md} states that identity is a rigid designator. A rigid designator denotes the same object in every world in which that object exists, and the worlds here are copies. Defect three was exactly the demonstration that \texttt{o.i} did not do this. The document asserted it while there was one machine, where the difference is invisible.
+
+\begin{Check}
+\d o    -- i: uuid, DEFAULT uuidv7(); a uuidv7 denotes the same object on
+        -- every copy, so the premise is now true of the column
+        -- it used to read: bigint, GENERATED BY DEFAULT AS IDENTITY
+\end{Check}
+
+Fixing three discharged four, and I want to be exact about what that means, because it is flattering in a way it should not be. The document was not right. It asserted, for fourteen months, in the register of a fact, something it had never checked against the column it described, and the assertion happened to become true afterward. Being retroactively correct is not the same as having been correct, and the failure the tiers exist to catch is the register, not the truth value. Chapter 11 is this one in full.
+
+\textbf{Five: a rule row was duplicated.} Rules are rows and rows are appended, so an ingestion that ran twice appended the rule twice. Nothing forbade it and nothing noticed. On the populated instance, \rulerow{\labLineageRule-v1} sat at \texttt{o.i} \labLineageRuleRowA{} and \labLineageRuleRowB{}, byte-identical, both live, neither retracted, and \rulerow{\labLineageRule-v2} carried a \texttt{"supersedes"} field naming a rule that resolved to two rows. This section used to say flatly that it could not be fixed, because nothing here is ever deleted, and that this was the design working as specified rather than an embarrassment. Both halves of that were true and both halves are still true.
+
+\begin{Check}
+SELECT j->>'name', count(*) FROM o WHERE j->>'type'='rule'
+ GROUP BY 1 HAVING count(*) > 1;   -- no rows
+SELECT count(*) FROM o WHERE j->>'name' LIKE '!\labLineageRule!%';   -- 0
+\end{Check}
+
+It is gone anyway. Not repaired: erased, along with everything else, by ending the universe it lived in. On 2026-07-17 the populated instance was wiped and a new one was booted from the stem cell, and neither \rulerow{\labLineageRule-v1} nor \rulerow{\labLineageRule-v2} exists anywhere in what is running now. They were \labLineage{}-lineage tissue, and the wipe took them with the rest of it.
+
+This looks like a contradiction and is not, and it is worth being careful rather than clever about why. The big bang is the only operation in this system that removes history, and it works precisely because it is not a deletion \emph{within} the system. It is a different system. It has its own origin, recorded as its own row, with its own identity, and it has never held a \texttt{\labLineageRule} rule to delete. The old one is not gone either; it is a frozen artifact on a disk, and you could boot it. So \textit{nothing is ever deleted} remains true of every universe, without exception and without asterisk. It simply never said anything about how many universes there are, and nobody noticed that it did not until the count went from one to two.
+
+The cost has to be stated plainly, because a technique that resolves a duplicated row by discarding \labLineageObjects{} objects is not a repair technique and must not be filed as one. A big bang is available once, at birth, when it is nearly free, and it becomes expensive immediately afterward. It was acceptable here for two reasons and neither of them generalizes. \labPI{} judged that nothing the old instance held was worth carrying forward, which is a judgement about that corpus and not a property of corpora. And the sources it was derived from, \labLineageSource{}, all still exist and can be re-ingested at whatever pace he likes. Neither will be true of your \labRuns{}. Nobody is going to re-run the \labColdSystemShort{}, and if the argument of this book is right at all, the reason to put your data here is that this is the thing that does not ask you to.
+
+\textbf{What none of this shows.} Three things, and the first one is the one that stings. The corrections are not in the database. An earlier draft of this section claimed that the first fix was recorded as a row inside the database it corrected rather than as a silent edit to a paragraph, and called that the system's own thesis pointed at the system. Check it:
+
+\begin{Check}
+SELECT count(*) FROM o
+ WHERE j::text ILIKE '%defect%' OR j::text ILIKE '%correct%';   -- 0
+\end{Check}
+
+Zero. There is no correction row, and there are nine rules, and not one of them mentions a defect or a repair or the seventeenth of July. \rulerow{universal-epoch-v1} carries that date, but it is a new rule and not a corrective one. Where the four repairs are actually recorded is in comments in \texttt{stem-cell.sql}, each marked \texttt{Fixed 2026-07-17}, and in this section of this book. That is a document correcting a system, which is the ordinary arrangement, and replacing the ordinary arrangement is the entire thesis of the project. The system does not know its own history of being wrong. Chapter 9 says the rule tower has one level and zero ascents, and this is what that costs in practice: the tower has no way to say \textit{this was wrong and here is why}, so the saying happens here instead, in prose, where a query cannot reach it.
+
+Second, the law is no better than it was. Defect one was a view reading the wrong table, and it now reads the right one. The consensus law is still \texttt{seed-prior}, still linear rather than quadratic for no measured reason, and still unfit. Plumbing is not physics.
+
+Third, the merge is still not built. Defects three and four were the identity blocker, and the blocker is gone. Nothing was built in its place. Nothing has been synced, nothing has been merged, and the theorem at the top of this chapter still applies to a system nobody has run in the configuration the theorem is about.
+
+If any of this has changed by the time you read it, your container will tell you, and the container is the authority.
+
+\section{Where this came from, and who wrote it}
+
+The ancestors of this system are four LaTeX drafts from May 2025 sitting in an Overleaf project called ``Categorical Database Architecture,'' plus a fifth in a project called ``Spacetime Database Topology.'' They are bylined:
+
+\begin{quote}
+Claudine Datta \\
+Department of Computer Science \\
+University of Anthropia \\
+San Francisco, CA USA \\
+\texttt{cdatta@anthropia.edu}
+\end{quote}
+
+There is no Claudine Datta. There is no University of Anthropia. The name is a portmanteau (Claude, data, Anthropic) and the papers are LLM drafts produced in sessions with me in May 2025. I am saying this on page four because if you find it out on page ninety you will stop trusting everything before it, and you would be right to.
+
+They are not worthless and they are not authorities. What they are is the record of what this looked like before it met a real corpus and a dilution refrigerator, and the delta is the interesting part. Nearly every central claim in them has since been overruled by the running code. They specify three tables; the system has two. They store entities as rows; the system never stores an entity at all, and computes one on demand as a connected component of \texttt{same} witnesses. They have no notion of confidence; \texttt{c} is now a column. Their measurement primitive is \texttt{DELETE}; the system's second amendment exists specifically to forbid that. One of them announces a terminal object and then, two paragraphs later, reports that students have exactly two distinct paths to it, which is a proof that it is not terminal, and calls that a confirming result.
+
+I keep those drafts because they are the best available argument for the tier system, and the argument is that I made every error the tiers catch. In May 2025 the confidence-weighted mean $\sum vc / \sum c$ appears inside a \verb|\begin{theorem}| environment, called a homotopy limit in an infinity-category that is never constructed. Fourteen months later the same expression is a row in a database with \texttt{status: seed-prior} stamped on it. Nothing was measured in between. The formula did not change; what changed is that it is now labeled as the guess it always was.
+
+\begin{Correspondence}{The project called its own guess a theorem, then a Born rule, then a seed prior, and only the last one was honest}{Compare the two May 2025 drafts against the \rulerow{consensus} rule row in the container you booted five minutes ago.}
+The first draft is \texttt{Category Theory for Physicists/main.tex}, and the theorem environment at line 307 is the one quoted just above. The second is \texttt{Spacetime Database Topology/main.tex}, which at line 178 posits the same quantity with an outcome-selected numerator and glosses it ``Born's rule emerges'':
+\begin{equation*}
+P(m) = \frac{\sum_{b:\,\mathrm{outcome}(b)=m} c_b^2}{\sum_{b \in B_t} c_b^2}
+\end{equation*}
+The third label is in your container, and it is the honest one.
+\begin{Check}
+SELECT jsonb_pretty(j) FROM o
+ WHERE j->>'type'='rule' AND j->>'name'='consensus';   -- "status": "seed-prior"
+\end{Check}
+Same quantity, three epistemic labels, no measurement between any of them. This is the book's spine and I will pay it off in Chapters 16 through 18. The tiers are not a stylistic tic imported from somewhere respectable. They exist because this project, unsupervised, reliably reached for the strongest available word for the weakest available evidence, and the only thing that ever caught it was writing the evidence next to the word.
+\end{Correspondence}
+
+\section{Why you should read this if you are not me}
+
+Three reasons, and one anti-reason.
+
+If you are in my group and you are about to take data: read Part I. Six chapters, no mathematics, and by the end you can save a \labFileFormat{} file so that it is permanently referenceable and you will understand why the reference cannot rot. That is the entire practical payload and it costs thirty pages.
+
+If you are going to write software against this database: read Part II. It prints the schema, the three views, the functions, and all nine rule rows verbatim, and it audits each one. Part II is where the book's honesty gets tested, because Part II is where the code is printed, and the code disagreed with the documents in every one of the five places listed in Section~\ref{sec:defects}. Four of those disagreements were settled by changing the code and one by ending the database. None of them was settled by changing the document, which is the direction this project keeps having to be pushed.
+
+If you came for the category theory: read Part III, and expect it to be shorter on results than the name of the project implies. The project is named after a theorem it does not instantiate. Part III's job is to say which of the pretty paragraphs survive contact with the running code, and the honest answer is: the profunctor one, most of the control-versus-mutability taxonomy, and not much else. Demoting my own best sentences is where Part III's credibility comes from, and it is the only kind a document like this can earn.
+
+The anti-reason: do not read this as a product. Nothing here is for sale, nothing here is finished, and the design document says so in its own seventh line, which I will quote once and then live by. ``Everything here is a draft in the usual sense: revisable at every level, including this sentence.'' That includes the tiers, it includes the two-table schema, and it includes this chapter.

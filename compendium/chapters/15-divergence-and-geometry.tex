@@ -1,0 +1,173 @@
+\chapter{Divergence and Geometry}
+
+\section{There is no prior art}
+
+This chapter has the largest gap in the book between what it wants to say and what anyone has written down, and the honest thing is to open with the size of the gap.
+
+The project's own folder \texttt{Spacetime Database Topology} sounds like the place where a geometry of merging would live. It is not. That folder contains one file, and the file contains no topology, no curvature, no holonomy, no connection, no parallel transport, no manifold, no metric, and no causal structure. The word ``spacetime'' does not appear in its body. Its actual title is \emph{Quantum Mechanics Emerges from Classical Information Branching in Time}. The only occurrence of ``space-time'' in it is complexity-theoretic, a Williams-style time-versus-memory tradeoff, glossed ``our model embodies this'', with the elaboration that deleted branches trade space for time. That is the closest the document comes to a geometric claim, and it is not one.
+
+So the curvature idea exists in exactly one place in the entire corpus, and that place is not a paper. It is one clause in one rule row in the live database, \rulerow{divergence-is-data-v1}, inserted 2026-07-16:
+
+\begin{quote}
+``Geometrically: forced convergence asserts path-independence (zero curvature); this rule asserts the curvature is real and is signal.''
+\end{quote}
+
+Everything in this chapter is built from that clause. Nothing is inherited. A reader who wants to check whether the geometry has been developed elsewhere should be told plainly that it has not, and that a chapter built on one sentence is going to spend most of its length saying what would have to be true.
+
+\section{Why convergence is refused, and what that argument actually rests on}
+
+Start with the part that is solid, because it is subtle and the vocabulary of the neighboring literature invites the opposite reading.
+
+Two properties get run together in every discussion of collaborative editing, and they are separable. The first is \textbf{co-presence}: live, low-latency visibility of what another author is doing right now. The second is \textbf{convergence}: the guarantee that when the typing stops, everyone holds one version. Google Docs delivers both, and because it delivers both at once, people treat them as one feature. They are not. \rulerow{divergence-is-data-v1} takes the first and refuses the second, and its own text says exactly that:
+
+\begin{quote}
+``Co-presence (live, low-latency visibility of another author edits) and convergence (ending with one version) are separable properties; take the first, refuse the second.''
+\end{quote}
+
+The refusal is not aesthetic. The rule's justification is calibration, and it is worth quoting in full because it is the argument:
+
+\begin{quote}
+``Justification is calibration, not taste. The consensus law is still seed-prior: linear vs quadratic (Born) is an unfit empirical parameter, and preserved disagreement IS the training corpus for that fit. CRDT strong eventual consistency resolves conflict silently at write time and the resolved-away divergence is unrecoverable: DELETE wearing a nice hat.''
+\end{quote}
+
+That is the live text, and it is not quite the text this chapter quoted before 17 July. The old row named the consensus law as ``rule i=1'' and the genome's copy does not, because there is no rule \texttt{i=1} any more: identities are UUIDs and the row is addressed by name. A rule that pointed at another rule by its integer id was carrying a reference that the identity fix would have silently broken, and the genome dropped the parenthesis rather than updating it. Nobody recorded that as a decision. It is the sort of edit that this book exists to notice.
+
+The mechanism of the complaint is precise. A CRDT achieves strong eventual consistency by making the merge function total: for any two concurrent states there is a deterministic join, and the join is applied at write time without asking anyone. That determinism is the whole point, and it is genuinely valuable when the thing being merged is a shopping cart. But the join is not a record of the disagreement, it is a replacement for it. Once two authors' concurrent edits have been resolved into one sequence, the fact that they disagreed, about what, and by how much, is not recoverable from the resulting state. In a system whose stated law is that nothing is deleted and that retractions are the training data, a write path that silently discards which of two authors was right is a deletion with better manners.
+
+\begin{Theorem}{Grow-only record sets converge without coordination}{Shapiro, Preguica, Baquero, Zawirski, \emph{Conflict-free replicated data types}, SSS 2011. The result is theirs, not ours; a grow-only set is the canonical state-based CvRDT and union is its join.}
+A set that is only ever added to forms a join-semilattice under union: associative, commutative, idempotent. Replicas that exchange states in any order, any number of times, after any delay, reach the same set. This is the property Chapter 12 leans on, and it is true here. What this chapter adds is the boundary of what it buys: the row-set converges; the interpretation does not, and \rulerow{divergence-is-data-v1} forbids anyone from making it.
+\end{Theorem}
+
+So the position is: convergence of the ledger is a theorem and is welcome. Convergence of the reading of the ledger is refused. Chapter 12 makes the first half of that; this chapter owns the second.
+
+And now the circularity, which Chapter 8 established and which this chapter must not step around. The corpus that the preservation is for does not exist.
+
+\begin{Open}{Is the calibration justification for refusing convergence currently supported?}{Settled by giving a real witness class a value field and refitting; count the rows that carry a value to see the size of the corpus today.}
+The rule says preserved disagreement is the training corpus for the linear-versus-Born fit. There is no such corpus. The rejection of CRDTs may well be correct on independent grounds, and the ``DELETE wearing a nice hat'' objection stands on its own as a claim about what a total merge function throws away. But the specific appeal to an impending fit is, as of this writing, a conjecture about data the schema does not yet contain.
+
+The measurement was made twice and got worse. On the archived universe, one row out of 256,619 carried a value: a quarter of a million witnesses, and the entire training corpus for the law at the center of the system was a single row. On the live instance the number is zero out of zero, which is not an improvement and is not really a regression either. It is the same situation with the noise removed. A fit needs many sources disagreeing about the same claim with the disagreements preserved, and neither universe has ever had two.
+
+\begin{Check}
+-- live, 2026-07-17
+SELECT count(*) FROM r;                                  -- 0
+SELECT count(*) FROM r WHERE d ? 'v';                    -- 0, the entire training corpus
+SELECT count(*) FROM consensus;                          -- 0 groups
+SELECT count(*) FROM consensus WHERE truth IS NOT NULL;  -- 0
+
+-- archived, ydb-pre-bigbang-2026-07-17.dump
+SELECT count(*) FROM r;                                  -- 256619 rows total
+SELECT count(*) FROM r WHERE d ? 'v';                    -- 1
+SELECT count(*) FROM consensus;                          -- 186324 groups
+SELECT count(*) FROM consensus WHERE truth IS NOT NULL;  -- 1
+\end{Check}
+\end{Open}
+
+\section{Herlihy and Shavit, and why the import is only half legitimate}
+
+The natural place to look for a real geometry of distributed disagreement is the topological turn in distributed computing, and this section does that work, because it is the one place in this chapter where actual mathematics is available.
+
+\begin{Theorem}{Asynchronous computability}{Herlihy and Shavit, \emph{The topological structure of asynchronous computability}, JACM 46(6), 1999; see also Herlihy, Kozlov, Rajsbaum, \emph{Distributed Computing Through Combinatorial Topology}, 2013.}
+A decision task, specified by an input complex $\mathcal{I}$, an output complex $\mathcal{O}$, and a carrier relation $\Delta$ saying which outputs are legal for which inputs, is wait-free solvable in the asynchronous read-write model if and only if there is a chromatic simplicial map
+\[ \phi: \operatorname{sd}^{k}\mathcal{I} \longrightarrow \mathcal{O} \]
+from some subdivision of the input complex to the output complex, carried by $\Delta$.
+\end{Theorem}
+
+The content a physicist needs from that, stripped of the machinery: \textbf{impossibility in distributed computing is a statement about connectivity}. A process's local view is a vertex; a global configuration consistent with everyone's views is a simplex; running the protocol one more step subdivides the complex rather than tearing it. Subdivision does not change connectivity. Consensus asks for a map onto an output complex with one component per decision value, which is disconnected. A connected complex admits no simplicial map onto a disconnected one that is also carried by the task, so consensus is not wait-free solvable. The obstruction is not a clever adversary argument; it is $\pi_0$, and it is the same $\pi_0$ that Chapter 5 uses to assemble a person, which is a coincidence of vocabulary and not of content.
+
+That is the real theory, and here is the honest verdict, which this chapter is obliged to reach rather than dodge.
+
+\begin{Correspondence}{Herlihy-Shavit does not apply to this system, because this system has no decision}{A decision task requires an output complex; count the rows where this system irrevocably outputs a value.}
+A decision task requires every process to irrevocably output a value from a fixed set. The only place this system could do that is \texttt{realize()}, and it has never been called, so there is no output, no output complex, and nothing for the theorem to constrain.
+\begin{Check}
+SELECT count(*) FROM r WHERE d->>'type'='realize';   -- 0, no process has ever decided
+\end{Check}
+Every process in this system outputs ``I have these rows.'' There is no fixed value set, no irrevocability, and no requirement that two processes agree on anything before proceeding. The union is always available and is always legal. Stated topologically, the protocol complex is contractible because nothing forces a choice: there is no cut, so there is nothing for connectivity to obstruct. This is the same fact as the semilattice in Chapter 12, wearing different clothes. Herlihy-Shavit says consensus is hard. This system's answer is not to solve consensus. It is to never call it.
+\end{Correspondence}
+
+That is worth dwelling on, because it explains why merging here is easy and it explains exactly what the easiness costs. The hardness in the classical theory is entirely in the demand for a single agreed output. Remove the demand and the obstruction evaporates, along with the answer. What is bought is a system that never blocks and never fails to merge. What is sold is the number: nobody ever has to say which of Alice's 3.14 V and Bob's 3.16 V is the reading. The \texttt{consensus} view is where the number would be produced. It produces nothing at all on the live instance, which has no rows, and it produced exactly one number out of 186,324 groups on the archived one. Neither of those is a system that answers questions.
+
+\texttt{realize()} is where a decision would live. It has been called zero times. So the one place in the architecture that would put this system inside the scope of the asynchronous computability theorem is the one place that has never run. If \texttt{realize()} ever becomes a routine operation with contention between machines, Herlihy-Shavit stops being an inapplicable import and starts being a constraint, and the book should say so now rather than be surprised later.
+
+\section{Merge conflict is curvature: how far it goes, and where it stops}
+
+\begin{Analogy}{Merge conflict is curvature}{Breaks at the schema: \texttt{b} is a random per-row UUID with no parent pointer, so there are no loops to have holonomy around.}
+Curvature is a property of a connection on a bundle. This system has no connection, because there is no notion of transporting a state along an edit and back, so there is no parallel transport. It has no bundle, because the schema has no fibers, only rows. And worst, \texttt{b} carries no ancestry, so there is no relation between branches at all: two branches are not two paths between the same endpoints, they are two unrelated UUIDs. A loop requires a common origin and a common terminus and the schema can express neither. ``The curvature is real'' is at present a claim about a space the database cannot represent.
+
+Take the analogy as far as it honestly goes, which is a real distance. Forced convergence asserts that the result of applying two concurrent edits does not depend on the order in which they are applied. That is a genuine path-independence claim: it says a loop in edit-space closes. Refusing it is genuinely the claim that the order matters, that going out along A and back along B does not return you to where you started, and that the failure to return is not noise but the measurement. That much of the geometric language is doing work, and it is a good instinct: a physicist recognizes ``the result depends on the path'' as the signature of a connection with nonzero curvature, and it is the right first thought.
+
+It is only a first thought. Path-dependence is necessary for curvature and nowhere near sufficient. Curvature is the failure of the holonomy around an \emph{infinitesimal closed loop} to be the identity, which presupposes (i) a base space in which loops exist, (ii) a fiber over each point carrying the transported state, and (iii) a rule for transport along each edge. This system has none of the three. It has a table with a random UUID per row.
+\end{Analogy}
+
+The numbers made the point sharper than any argument, and it is worth keeping them even though the database they came from is gone. On the archived universe \texttt{count(*) from r} was 256,619 and \texttt{count(distinct b)} was also 256,619. Every branch had exactly one row, because every row took the \texttt{gen\_random\_uuid()} default and no writer ever supplied a \texttt{b} deliberately. A quarter of a million branches, each of length one: there had never been a branch in the branch column, never a fork, therefore never a loop, therefore nothing whose holonomy could be measured. The live instance has zero rows and zero branches, which says the same thing less eloquently.
+
+\begin{Correspondence}{The branch column is inert}{Count the branches and the rows per branch on your own instance; if every branch holds exactly one row, nothing ever forked.}
+\rulerow{divergence-is-data-v1} says ``Simultaneous edits produce distinct branches (r.b); every branch is retained and none is privileged.'' The mechanism is present in the schema and has never been exercised, on either universe. That is not a criticism of the rule, which was written for a use that starts when the lab group arrives. It is a correction to the tense: the sentence describes what will happen, not what has.
+\begin{Check}
+-- live: nothing to count yet
+SELECT count(*), count(distinct b) FROM r;           -- 0, 0
+
+-- archived, ydb-pre-bigbang-2026-07-17.dump: the eloquent version
+SELECT count(*), count(distinct b) FROM r;           -- 256619, 256619: one branch per row
+SELECT n, count(*) FROM (SELECT b, count(*) n FROM r GROUP BY b) s
+  GROUP BY n ORDER BY n;                             -- one bucket: n=1, 256619 branches
+\end{Check}
+\end{Correspondence}
+
+\section{What it would take}
+
+The good news about all of this is that the fix is small and it is one column.
+
+\begin{Open}{Give the branching structure a geometry}{Give \texttt{b} a parent, then test whether the realized state depends on merge order.}
+Absent a parent pointer the question cannot even be posed, which is why this is Open rather than merely unmeasured. Add a parent edge to branches so that two branches can share an origin. Then a merge is a loop:
+
+\begin{Check}
+-- origin -> branch A -> realize
+-- origin -> branch B -> realize
+-- does the realized state depend on the order? Run it on a real two-author
+-- document, vary the order, compare.
+\end{Check}
+This is the most useful open problem in the book, and the reason is the cost. It is one column, or one relation type, and after it the curvature question stops being rhetoric and becomes an experiment with a null result available. If the realized state is order-independent, the geometry is flat, the CRDT people were right about this corpus, and \rulerow{divergence-is-data-v1} is preserving nothing. If it is order-dependent, there is something to measure and the rule earns its geometric clause. Either answer is worth having and neither is currently obtainable.
+\end{Open}
+
+Two notes on what such a column does and does not buy, so nobody oversells it later.
+
+First, a parent pointer gives ancestry, which is a directed acyclic graph, not a manifold. The object it produces is the one Git has: a DAG of snapshots with a merge operation that is a partial function of two parents. Loops in that DAG are combinatorial, not infinitesimal, so what becomes measurable is discrete holonomy, an element of some groupoid of edit-sequences, and only if a transport rule is also written down. The column is necessary. It is not sufficient, and the honest framing of the next step after it is: define the transport, then ask about the loop.
+
+\begin{Analogy}{The Git framing in \rulerow{oplog-vs-blob-v1}}{Breaks on ancestry, the same rock: Git has a merge base and this schema cannot express one.}
+The rule says ``the live thing (mutable op-log, working tree) and the citable thing (immutable hashed snapshot, commit) are DIFFERENT OBJECTS. The hash only ever addresses the second.'' That distinction is exactly right and is the best thing in the rule.
+
+But Git's commits carry parent pointers, its branches share history, and its merge is defined precisely because the merge base is computable. Here \texttt{b} is a random per-row UUID with no parent, so there is no merge base, and \rulerow{divergence-is-data-v1}'s ``it leaves both parents standing'' refers to parents the schema cannot express.
+\end{Analogy}
+
+Second, the column interacts with Chapter 12's compression. \texttt{r} is segmented by \texttt{b} on the theory that ``near-duplicate branches compress well.'' There are no near-duplicate branches, and 256{,}619 segments of one row each is the worst case for columnar compression, not the best. If branches become real, that comment might become true for the first time. It is a prediction either way, and compression has never run.
+
+\section{The paper this repudiates}
+
+The last thing this chapter owes the reader is a confrontation with the project's own earlier position, because the earlier position is the exact opposite of the current one and both are in the corpus.
+
+The 2025 branching paper's measurement primitive was \texttt{DELETE}. Verbatim, from its figure caption: ``Measurement selects one branch, deleting others.'' From its discussion: ``\textbf{Measurement = Branch selection}: Choosing one timeline and discarding others.'' From its methods: ``Measurement via DELETE operations on non-selected branches.''
+
+Amendment 2, adopted 2026-07-03, is the repudiation, and it is exact. Branch selection is recorded as an event; the losing branches remain. The live function is four lines:
+
+\begin{verbatim}
+INSERT INTO r (d, b)
+VALUES (jsonb_build_object('type','realize','branch',branch::TEXT), branch)
+RETURNING i;
+\end{verbatim}
+
+Same function name, \texttt{realize()}, inverted semantics. In 2025 it destroyed the losers. Now it writes a row saying which one was chosen and touches nothing else. Anyone reading the 2025 SQL with database access will be confused unless the book says so, so the book says so.
+
+And then the finding that makes the confrontation worth a page rather than a footnote.
+
+\begin{Correspondence}{The 2025 model destroys the 2025 paper's own open question}{Read the paper's two commitments side by side: it needs the losing branches to fit its exponent, and it deletes them.}
+The paper proposes that measurement probability goes as $c^2$ and leaves the exponent unjustified; Chapter 16 shows its own proof contradicts itself at exactly that exponent. It also specifies measurement as \texttt{DELETE} on the non-selected branches. Now ask what a fit of the exponent would need: the branches that lost, with their confidences, retained. The model deletes precisely those.
+A database that DELETEs non-selected branches can never fit the consensus law, because it has thrown away the data the fit requires. The paper's mechanism forecloses the paper's own question, and nothing in the paper notices. This is not a subtle inference; it is two sentences from the same document put on the same page. It is also the cleanest available argument for \rulerow{divergence-is-data-v1}, and note that the argument does not require the calibration corpus to exist: it is a claim about what a write path makes possible, not about what has been measured.
+\end{Correspondence}
+
+So the intellectual history runs: the 2025 paper posits a law and specifies a mechanism that makes the law unfittable. Amendment 2, in July 2026, replaces the mechanism with an event and leaves the losers standing, on general grounds, without stating why. Thirteen days later \rulerow{divergence-is-data-v1} states why, and its own trigger field says as much:
+
+\begin{quote}
+``Jeremy instinct was to preserve versions and merge/analyze later. That instinct is amendment 2 (realize records branch selection as an EVENT; losing branches remain as training data) already in the substrate since 2026-07-03.''
+\end{quote}
+
+The rule is not new. It is the substrate finally noticing what it had already committed to. That is the good version of this chapter's story, and it is worth setting against the bad one, which is that the geometry the rule invokes to justify itself is a claim about a bundle, a connection, and a loop, none of which the schema has, and all of which are one column away.

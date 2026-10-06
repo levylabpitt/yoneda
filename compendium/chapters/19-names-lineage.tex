@@ -1,0 +1,246 @@
+\chapter{The Names Lineage: A Fossil}
+
+Everything up to here has been genome. Two tables, the hypertable on \texttt{t}, \texttt{r\_active}, \texttt{realize()}, \texttt{component()}, the consensus view, and nine rules that are domain-agnostic on purpose. If you booted an instance while reading Part I, that is what you have, plus the row recording the moment you booted it, and it is all you have.
+
+This chapter is about one differentiated lineage that no longer runs. It was called Names, because that is what the project was called before it was called Yoneda. It was grown on Jeremy's personal email archive, his papers, and his calendars, over one weekend in July 2026, and then lived with for two weeks. It was the only instance that had ever been run hard. On 2026-07-17 it was wiped, deliberately, and a fresh instance was booted from the stem cell in its place.
+
+So what follows is not a report on a running system. It is a report on a dump. The lineage is now a single file, \texttt{ydb-pre-bigbang-2026-07-17\allowbreak.dump}, 1.18~GB, sitting in \texttt{ClaudeWorkspace/\allowbreak backups/ydb/} next to the nightlies it grew out of. Nothing in this chapter can be re-queried without restoring it, and nothing in this chapter has been re-queried since the wipe. Every number below was read out of the live database on 2026-07-17, hours before it ended, and is now a claim about a file.
+
+That is a demotion, and it is worth saying what survives it. This is still the only place several of the substrate's claims were ever tested against something big and messy enough to break them, and two of them did break, in ways that produced rules you inherited. It is still the only place we can honestly say what has \emph{not} been tested, which is more of the design than is comfortable. What it is no longer is a demonstration that any of it is currently working. There is no instance with data in it. There is a genome, and there is a fossil, and this chapter is the fossil.
+
+One more thing to get out of the way before the numbers, because it changes how to read the loss. The sources are all still here. The raw \texttt{.eml} tree is at \texttt{E:\textbackslash egres-raw}, unchanged. The Paperpile bibs are in Google Drive where they always were. The calendars are still in the accounts that hold them. What ended was the derived structure and the labour that produced it: the witnesses, the components, the retraction ledger, the two rules that scale taught. Not one fact about the world was lost. That distinction is the entire reason a big bang was affordable here, and it is the first thing to check before it is ever affordable anywhere else.
+
+\section{What it held}
+
+The object table had 178{,}561 rows and the relation table had 256{,}619. That was the whole of it, and the shape was lopsided:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+\textbf{\texttt{kind}} & \textbf{count} \\
+\midrule
+email-correspondent & 118{,}647 \\
+author-mention & 23{,}902 \\
+calendar-event & 22{,}732 \\
+paper & 11{,}963 \\
+email-signature-sample & 1{,}139 \\
+email-correspondent-recent & 123 \\
+(no \texttt{kind}: 13 rule rows plus one correction) & 14 \\
+recall-trial & 9 \\
+domain & 8 \\
+ingestion-run & 7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The tail below that was single digits: four \texttt{fact} rows, three \texttt{correction} rows, two each of \texttt{person-mention}, \texttt{domain-history}, and \texttt{naming}, and one each of \texttt{field-note}, \texttt{asana-project}, \texttt{prior}, and \texttt{conversation}. Three of those corrections carried \texttt{kind: correction}; the fourteenth kindless row was a fourth correction that carried \texttt{type: correction} instead, and it is the subject of section~\ref{sec:consensus-view-fix}. That the same idea was spelled two ways in one table is itself a small piece of evidence about what an append-only store looks like after two weeks of unsupervised growth.
+
+Note the thirteen rule rows. A fresh instance today boots with nine, and the list is not a subset of that thirteen in any tidy way. Some of the difference is tissue that never belonged in a genome, and some of it is rules that were written after this instance stopped being the place new rules were written. Do not use this table to count your own rules. Query them.
+
+Two-thirds of the objects were one kind, and that kind was email. An \texttt{email-correspondent} was not a person. It was a single observed (address, display-name) pair, which is the smallest thing the corpus actually asserted. Chandralekha Singh's Pitt address alone accounted for 39 of them, because 39 distinct display names had appeared next to it over eighteen years. That ratio was the design working, not a failure of deduplication: the substrate refuses to collapse observations, so the object count grows with the number of distinct \emph{sightings}, not with the number of things in the world.
+
+The relations divided by type as follows, counted through \texttt{r\_active} and never raw \texttt{r}: \texttt{co\_addressed} 44{,}410, \texttt{same} 44{,}396, \texttt{authored} 40{,}960, \texttt{attended} 15{,}446, \texttt{organized} 3{,}860, and then a long tail in the single digits (\texttt{registrant} 8, \texttt{catalogued\_in} 8, \texttt{works\_for} 2, \texttt{mentioned\_in} 2). Three sources produced essentially all of it: the email archive, Paperpile, and two calendars.
+
+The important number was the one that was not in either table. The \texttt{email} schema held 601{,}094 message rows and occupied 10~GB. The entire relation graph, chunks and indexes included, was about 96~MB, and \texttt{o} was 60~MB. The graph was roughly one percent of the corpus it was extracted from. This is \rulerow{oplog-vs-blob-v1} showing up as a disk measurement rather than as an argument: the heavy, sole-authored, append-only bytes stay outside \texttt{o} and \texttt{r}, and what lives in the two tables is only the claims made about them. A lab lineage will have the same ratio and worse. Ten million sweep points from a fridge run are 10 million points; the assertion that a particular student took that sweep on a particular sample is one row.
+
+The ratio also explains the size of the fossil. The dump is 1.18~GB rather than 156~MB because it carries the email schema along with the graph, and the graph itself would have fit in a rounding error. What was expensive to store was never what was expensive to make.
+
+There was also a \texttt{staging} schema, 80~MB, holding extraction work in progress. It was scaffolding. Pitt calendar data, roughly 18{,}600 events, had been extracted into it and never loaded, which was the honest status of that source for the whole life of the instance: staged, not ingested. It is still staged. Nothing about the wipe changed that, because nothing about the two weeks before it did either.
+
+\section{The identity graph on a real person}
+
+Entities are never stored. \texttt{component(key, val, min\_c)} walks \texttt{same} witnesses above a confidence floor and returns a connected component on demand. In an empty instance that is a definition. Here it was a measurement, and the measurement is more interesting than the definition, which is why it is worth preserving even though you cannot re-run it.
+
+There were 53{,}770 \texttt{same} witnesses in \texttt{r} and 44{,}396 in \texttt{r\_active}. The difference, 9{,}374, was retracted: witnesses that were asserted in good faith and later pointed at by an outcome row saying otherwise. Nothing was deleted to achieve that. There were 57{,}994 outcome rows in total, and they are why \texttt{component()} did not have to be re-run against a corrected corpus. The corpus was not corrected. The corrections were appended next to it.
+
+The witnesses themselves were almost entirely of three kinds: \texttt{email-address} (36{,}663 active), \texttt{display-name-exact} (5{,}186), and \texttt{bib-name=email-name} (2{,}530), the last being the join between the Paperpile author graph and the email graph. Then there was a tail of about fifteen witnesses, one or two each, with evidence strings like \texttt{username-match+same-thread-role}, \texttt{name+spouse-context}, \texttt{self-cc pattern}. Those were hand-asserted, one at a time, by a human who knew something the extractor did not. The tail was small and it was the part that made the graph usable. It is also, per object, the most expensive thing the wipe destroyed: everything else can be re-extracted by re-running a script against \texttt{E:\textbackslash egres-raw}, and those fifteen cannot.
+
+Here is what \texttt{component()} returned on a messy person. Chandralekha Singh has been at Pitt since the 1990s and shares a household with the person who built this database.
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+\textbf{address} & \textbf{objects at $\mathbf{min\_c=0.5}$} & \textbf{at $\mathbf{min\_c=0.9}$} \\
+\midrule
+clsingh@pitt.edu & 39 & 39 \\
+clsingh@gmail.com & 14 & 0 \\
+singh@phyast.pitt.edu & 13 & 0 \\
+singh@bondi.phyast.pitt.edu & 10 & 0 \\
+clsingh+@pitt.edu & 7 & 0 \\
+clsingh@levylab.org & 2 & 0 \\
+no-reply@share.wsj.com & 1 & 0 \\
+reply-505c...@asana.com & 1 & 0 \\
+\midrule
+total & 88 & 39 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+At $min\_c = 0.9$ the component was clean and wrong: 39 objects, all of them display-name variants of the one Pitt address, having lost the gmail account, the two 1990s \texttt{phyast} accounts, and the levylab address. At $min\_c = 0.5$ it recovered all of those and picked up two pieces of garbage: a Wall Street Journal share-a-link address and an Asana reply-to token, both of which had once carried her display name because she had sent something through them. There was no threshold that got both right. The confidence floor is a dial between precision and recall and the caller has to turn it, which is the honest answer and not a satisfying one.
+
+The 39 display-name variants are worth quoting, because they are what eighteen years of one address actually looks like: \texttt{chandralekha singh}, \texttt{CLSINGH@PITT.EDU}, \texttt{'Singh, Chandralekha'}, \texttt{Chandralekha Singh (CLSINGH)}, \texttt{Singh, Chandralekhu / Univ. of Pittsburgh} with the typo preserved, a variant with a mangled escaped quote still in it from some client's broken header, and \texttt{Mom}. Every one of those was a true observation. None of them was her.
+
+\begin{Correspondence}{Entities as $\pi_0$}{run \texttt{component()} at two thresholds on any seed you have a lot of data about, and check whether the components are nested}
+The claim from Part II is that a person is the connected component of \texttt{same} witnesses, that is, $\pi_0$ of the witness graph, and never a stored row. The Names lineage was the evidence that the claim was operational rather than decorative: no table in that database had a \texttt{person} in it, and every person-level query in it, including the game, went through \texttt{component()}. The check is cheap, but it is now a check you have to run on your own data, because the table above is a transcript and not a live result. What the transcript also shows is that $\pi_0$ is a function of $min\_c$, so ``the person'' is a family of components indexed by a threshold, not a single object. That is a real weakening of the claim and it is not resolved.
+\end{Correspondence}
+
+\section{What scale taught}
+
+This is the payload, and it is the part of the chapter that outlived the instance. Twice, this lineage got big enough to be wrong in a way that a small one could not have been, and both times the fix was written down as a rule rather than patched into a query. A third defect is in here too, and it is the odd one out: scale did not find it and neither did a human playing with the output. It was found by checking the book's claims against the schema, it had been there from the first line, and its remedy was a correction row rather than a rule.
+
+Only one of the three is yours. \rulerow{window-censoring-v1} is genome and is sitting in your instance right now, before you have asserted anything. The shared-mailbox rules are tissue, they were never in the genome, and as of 2026-07-17 they do not exist anywhere except in the dump and in this chapter. That is exactly why the first one is worth reading: what transfers is not the rule but the shape of the mistake, and the shape is now all that is left of it.
+
+\subsection{shared-mailbox, v1 to v2}
+
+On 2026-07-03, running \texttt{component()} on \texttt{clsingh@pitt.edu} at $min\_c \geq 0.5$ returned 9{,}810 objects. Not 88. The component had swallowed most of the address book, and the path was two addresses: \texttt{nobody@invalid.invalid}, a placeholder that some mail client emits when a header will not parse and which had accumulated 397 name-edges, and a set of LinkedIn and Google Drive notification addresses that carry whoever's name is in the notification. Address equality is a good identity witness right up until the address is not a person, and then it is a bridge between every person who ever touched it.
+
+The first fix, \texttt{shared-mailbox-v1}, was a count: an address whose multi-token display-name variants span four or more distinct name signatures is a shared mailbox, and address equality is not identity evidence there. It killed the explosion. It also false-positived immediately, on exactly the accounts that mattered most. \texttt{clsingh@pitt.edu} had 39 name variants and is one woman. \texttt{pi@example.edu} tripped its own rule. A long-lived personal account and a family-shared account both look like a shared mailbox under a pure variant count, because the thing being counted is client sloppiness and time, not sharing.
+
+\texttt{shared-mailbox-v2}, dated the next day, added a dominance criterion: shared iff there are four or more distinct multi-token name signatures \emph{and} the top signature carries less than 50\% of named traffic. One dominant name plus decades of noise is a person. No dominant name is a mailbox. It superseded v1, though only as a string inside its own JSON rather than as a row in \texttt{r}, which is a limit taken up below. v1 was still sitting in \texttt{o}, superseded rather than removed, and v2 named the accounts it had been wrong about in its own definition, which is how this paragraph could once be read off the database instead of out of anyone's memory. It cannot now. It is read off a dump, or off this page.
+
+The general lesson is the one worth carrying into a lab lineage, and it is not about email. A criterion built from a count is a criterion about how much data you have. A criterion built from a \emph{distribution} can be about the world. Any rule of the form ``more than $N$ distinct $X$'' should be suspected of measuring corpus size.
+
+\subsection{window-censoring, caught by playing a game}
+
+The other one did not come from a query. It came from Jeremy playing the first session of Representable, the recall game built on top of this instance, on 2026-07-04. The game told him that a high-school friend ``entered your world around 2015.''
+
+That is false, and it is false in an instructive way. The archive started in 2010, and that friend's account only densified later. The number 2015 was a true statement about the corpus and the game had silently promoted it into a statement about a life. \rulerow{window-censoring-v1} is the correction: any min or max derived over a source is censored by that source's coverage window; \texttt{first\_seen} is a claim about the corpus and never about the world; near the window edge it is strongly left-censored; compiled statements must be phrased corpus-relative; confidence in first/earliest/never claims must degrade toward the boundaries; and every source profile must carry its coverage window.
+
+Two things about how this was found. First, it took a human playing with the output for five minutes, not a test suite, and the error was invisible from inside SQL because every row involved was correct. Second, the same defect is waiting in every lab lineage that says ``this sample was first cooled in March.'' It was first cooled in March \emph{according to a log that starts in February}, and if the log starts in February the March claim is worth much less than it looks.
+
+This rule is the single most valuable thing the Names lineage produced, and it is the reason the wipe is survivable at all. It cost one archive, one game, and one afternoon to find, and it now boots on every instance that will ever exist, including the empty one running today. The instance that earned it is gone. The rule is not.
+
+\begin{Analogy}{Coverage window as detector response}{a detector's response function is measurable independently of the signal; a corpus coverage window usually is not, because the same gaps that censor the data censor the record of the gaps}
+The corpus behaves like an instrument with a finite acceptance, and \texttt{first\_seen} is the analogue of reading a threshold off a spectrum without deconvolving the response. Physicists find this reflex easy, which is precisely why it is worth marking as an analogy rather than leaning on it: you can calibrate a detector by shining a known source at it, and there is no known source to shine at 2009.
+\end{Analogy}
+
+\subsection{The consensus view was reading the wrong table}
+\label{sec:consensus-view-fix}
+
+The third one was not found by scale and not found by play. It was found by reading this book's own claims back against the schema that was supposed to implement them, on 2026-07-17, which turned out to be the last day of the instance's life.
+
+The rule stated everywhere in Part II is that every query goes through \texttt{r\_active} and never through raw \texttt{r}, because a retracted witness is not evidence. The \texttt{consensus} view, which is where the word ``truth'' is actually computed, was defined \texttt{FROM r}. It had been averaging retracted witnesses back into truth since the schema was written. At the time it was caught that was 107{,}527 retracted rows out of 256{,}619: 42 percent of what the view was reading had already been withdrawn.
+
+The cause is worth being precise about, because it is duller and more instructive than a reasoning error. In \texttt{schema.sql} the \texttt{consensus} view was created before \texttt{r\_active} existed, so it could not have referenced it. Nobody decided to read raw \texttt{r}. The stated rule was right, and the implementation silently predated it. The stem cell now defines \texttt{r\_active} first and says in a comment that the ordering is load-bearing, so the artifact cannot recur by construction rather than by vigilance.
+
+Nothing was deleted to fix this, and that mattered for about six hours. \texttt{r} still held 256{,}619 rows and the retracted witnesses were still there, still readable, still the calibration corpus that section~\ref{sec:limits} says the law needs. Only the view stopped counting them as evidence. \texttt{consensus} then returned 144{,}514 rows, 2{,}262 of them contested by more than one witness. The next thing that happened to that database was the big bang, so the retracted witnesses that the fix was careful to preserve went into the dump along with everything else. The care was not wasted, but it is worth noticing that the careful thing and the drastic thing happened the same day, to the same rows, and only the drastic one is visible from here.
+
+The fix itself is in the genome, so you can check it, and the check is the same one that caught it.
+
+\begin{Check}
+-- On any instance: the view definition must read FROM r_active, not FROM r.
+SELECT pg_get_viewdef('consensus'::regclass, true);
+
+-- On a fresh instance: two witnesses that disagree, then retract one.
+-- retract() comes from the instrument differentiation, not the stem cell.
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"S1"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"D1"}');
+INSERT INTO r (o1,o2,d)
+  SELECT a.i, b.i, '{"type":"measured","v":1.0}' FROM o a, o b
+  WHERE a.j->>'id'='S1' AND b.j->>'serial'='D1';
+INSERT INTO r (o1,o2,d)
+  SELECT a.i, b.i, '{"type":"measured","v":0.0}' FROM o a, o b
+  WHERE a.j->>'id'='S1' AND b.j->>'serial'='D1';
+SELECT truth, witnesses FROM consensus WHERE type='measured';   -- 0.5, 2
+
+SELECT retract(i, 'second observer was reading a shorted input')
+  FROM r WHERE d->>'v' = '0.0';
+SELECT truth, witnesses FROM consensus WHERE type='measured';   -- 1.0, 1
+SELECT count(*) FROM r WHERE d->>'type'='measured';             -- still 2
+\end{Check}
+
+That transcript is not quoted from the Names instance. It was run on 2026-07-17 against a throwaway container booted from the current stem cell, which is now the only way to run anything. Before the fix the second reading did not move off $0.5$. That is the whole of the bug: retraction did not propagate to truth, so the one mechanism the design offers in place of \texttt{DELETE} had no effect on the one number anybody would read.
+
+The part worth one sentence and not more: the correction was a row. Object 178{,}561 recorded what was wrong, that the cause was ordering rather than reasoning, what was changed, and that nothing was deleted. It was the reason the object count in this chapter went up by one between drafts, and it was the system's own thesis turned on the system: a defect is an observation, and the remedy is to append. It is now the highest-numbered object in a file.
+
+One thing this did not buy, and still does not. The view reads the right table. The \emph{law} it applies to that table is still \texttt{status: seed-prior}, still \texttt{law: linear}, still unfit. Fixing where the evidence comes from is not the same as fixing how it is weighted, and only the first has happened.
+
+\section{How it ended, and what that cost}
+\label{sec:bigbang}
+
+The book's defects section listed five. Four of them were fixed by repair on 2026-07-17: the consensus view reading raw \texttt{r}; \texttt{blob()} accepting a forged identifier; the per-machine integer counters; and the DESIGN.md rigid-designator premise, which the \texttt{uuidv7} change discharges. The fifth was small and stubborn. \texttt{shared-mailbox-v1} existed twice, at \texttt{o.i=113403} and \texttt{o.i=113404}, identical, because an ingestion script failed after the rule \texttt{INSERT} and the rerun inserted it again. Relation \texttt{i=102954} was a \texttt{same} witness at $c=1$ joining the two rows, carrying evidence \texttt{duplicate-insert} and a note recording the cause.
+
+This book said, flatly, that the fifth defect could not be fixed, because nothing is ever deleted, and that this was the design working as specified rather than an embarrassment. That was the correct reading of the rule and it is worth keeping in view, because of what happened next.
+
+It is gone now. Not repaired. Erased, along with 178{,}561 objects and 256{,}619 relations and 601{,}094 messages, by ending the universe it lived in.
+
+The honest account of that is narrow and should not be made to sound clever. The big bang is the only operation in this design that removes history, and it works precisely because it is not a deletion \emph{within} the system. It is a different system. It has a new origin, a new identity, its own birth row, and no causal contact with the old one. ``Nothing is ever deleted'' remains true of every universe, before and after; it was never a claim about how many universes there are. The old instance is not corrupted or amended or partially rolled back. It is intact, frozen, and elsewhere.
+
+And the cost should be stated in the same breath, in numbers rather than in mood. The fix for one duplicated row was to lose 178{,}561 objects. The only reasons that was acceptable: Jeremy judged that none of the derived structure was worth keeping at this stage, and the sources it was derived from all still exist, so the loss is labour and structure, not facts. Change either of those and the arithmetic is grotesque. A big bang is not a repair technique. It is available once, cheaply, at birth, and it gets expensive fast, monotonically, in exactly the quantity this chapter spent its first half tabulating.
+
+The design decision underneath it is not about deletion at all. Every instance now records the moment it was brought to life, in a frame nobody owns:
+
+\begin{Check}
+SELECT instance_id();   -- this instance's identity: its big-bang row's o.i
+SELECT age();           -- seconds since this instance's birth. A difference: exact.
+SELECT t_universe();    -- seconds since THE Big Bang. A convention: see below.
+\end{Check}
+
+The instance that replaced Names is \texttt{019f6e4d-adb0-7c46-9d4b-ce4fbe666174}, and that string is not stored in a config file or a column. It is the \texttt{uuidv7} of the object recording its own birth. An instance is identified by its big bang, which is the same move the design makes everywhere else: identity is not stored, it is computed from what was witnessed. Two machines brought to life independently will disagree on that value without ever having to coordinate, which is the property that was missing when the identifiers were per-machine integers.
+
+\rulerow{universal-epoch-v1} is the level-0 rule that makes \texttt{t\_universe()} mean anything, and it is the one place in this book where a physical constant is written into the schema. It declares 4.354e17 seconds from the Big Bang to the Unix epoch, and the word declared is doing all of the work.
+
+\begin{Theorem}{The origin cannot be measured}{Planck 2018 results VI: age of the universe $= 13.797 \pm 0.023$ Gyr}
+The quoted uncertainty is about $7.3 \times 10^{14}$ seconds. A timestamp expressed as seconds since the Big Bang is an 18-digit number of which roughly 4 are physically meaningful, and none of them are meaningful as an absolute: the error bar on the origin is larger than every difference this database will ever record, by many orders of magnitude. No refinement of cosmology fixes this, because the uncertainty is on the origin itself and not on the clock. Therefore the constant is not measured. It is chosen, and it is exact by fiat.
+\end{Theorem}
+
+This is precisely the move SI makes with $c$. The metre stopped being a measurement of a bar in Paris and became a definition, and $c$ is exactly 299792458~m/s not because anyone measured it that well but because we chose to stop measuring it. Differences of \texttt{t\_universe} are exact and physical. The absolute value is a convention shared by every instance that agrees to that row, and it is worth nothing to an instance that does not.
+
+The corollary is stated in the rule row itself, and it is the part that will be tempting to get wrong. If cosmology revises the age, do not edit the row. Editing it would silently translate every timestamp in every instance downstream of it, which is a coordinate change disguised as a correction. Supersede it with \texttt{universal-epoch-v2} carrying an explicit offset, and treat the change as what it is. Origins do not get better. They get changed.
+
+Read the last two paragraphs against the first three of this section and the shape is the same. An origin is not repaired in place. You declare a new one and keep the old one legible.
+
+\section{The honest limits}
+\label{sec:limits}
+
+Four things in this book were not tested by this lineage, and this was the only lineage there was. The wipe did not resolve any of them. It removed the only place where two of them could have been attempted.
+
+\textbf{The calibration law is unfit.} The \texttt{consensus} rule, \texttt{o.i=1} on that instance, carried \texttt{status: seed-prior} and \texttt{law: linear} to the end. It says $truth = \sum(v \cdot c) / \sum(c)$ per $(type, o_1, o_2)$, and its own note concedes that the 2025 quantum-mechanics correspondence wanted $c^2$ and the consensus view used $c$, and that the discrepancy is an empirical parameter rather than a bug. Two weeks and 600{,}000 messages later it had not been fit. \rulerow{staleness-decay-v1} is in the same state, still marked ``proposed, not yet fit,'' with its half-lives explicitly to be measured from a corpus and not decreed. The corpus that was supposed to supply the fit is now a dump. The fit does not exist.
+
+\begin{Open}{Fitting the consensus law}{outcome rows on \texttt{same} witnesses where a later human judgment overruled an extractor, regressed against the confidences that were asserted at the time}
+There were 57{,}994 outcome rows in the Names instance, which is not obviously too few. The obstacle was never the count. Almost all of them were generated by one mechanical retraction sweep with a single cause, not by independent judgments, so the effective sample size for a regression was far smaller than the row count and was unknown. That obstacle is unchanged and now has a second one stacked on it: the rows are in a file, and fitting against them means restoring 1.18~GB first. Whether a lineage like that one \emph{can} fit the law, or whether a lab lineage with genuinely independent observers is required, is open, and is now cheaper to settle by growing the second kind than by exhuming the first.
+\end{Open}
+
+\textbf{The tower had one level and one ascent, and the ascent was bookkeeping.} Grouped by level, \texttt{r\_active} had 149{,}091 relations at level 1 and exactly one at level 2. That one was not what you would hope. It was \texttt{i=102954}, the \texttt{same} witness joining the two duplicate rule rows from the previous section, so the tower's only inhabitant was a note about a botched insert. The rule-about-rule facts that would actually justify a tower were all recorded inside the rule objects as JSON fields instead: \texttt{shared-mailbox-v2} carried \texttt{supersedes: shared-mailbox-v1} as a string, and \rulerow{oplog-vs-blob-v1} still carries \texttt{under: divergence-is-data-v1} the same way. Neither is a relation, so neither is queryable as one, and the supersession this chapter spent a subsection on was never in \texttt{r} at all. Every rule row was stamped level 2 and every fact level 1, and no rule ever governed another rule through the relation table. The tower is architecturally there. Nothing has climbed it, and the one thing that ever stood on the second step was a scar. Today the count is worse and more honest: zero relations, so zero ascents, on an instance whose rule rows include a level-0 that nothing has yet been derived from.
+
+\textbf{Nothing has ever merged.} \texttt{select count(distinct b) from r} returned 256{,}619, on 256{,}619 rows. Every single relation was on its own branch. \texttt{realize()} existed, \rulerow{divergence-is-data-v1} forbade any write path from forcing convergence, and the entire branch-and-merge apparatus that Part III spends a chapter on was never exercised by two authors, because there was only ever one. A Surface restored from a nightly dump is a copy, not a peer, and was explicitly scratch. This remains the largest untested surface in the design.
+
+What has changed here is only the blocker, and it is worth being exact about which one. On the Names instance \texttt{o.i} and \texttt{r.i} were \texttt{BIGINT} identity columns, which is to say per-machine counters, and two student instances would both have minted object 1 and collided on the first merge. That was called out as the one thing standing between the single-machine design and painless local copies. It is fixed: identifiers are \texttt{uuidv7()} now, content gets a deterministic identifier derived from its sha256, and two machines that ingest the same file agree on its identity without talking. The migration problem that came with it, how to move 178{,}561 append-only rows to UUID keys when the whole point of the store is that old rows do not get rewritten, was never solved. It was dissolved. There are no old rows.
+
+That is a real gain and a small one, and the distinction matters. The identifiers were the reason merge could not be tried. They were never the reason it had not been tried. The sync channels do not exist. There is no second instance holding data, because there is no first instance holding data. Everything this book says about merging remains a claim about a system that has never merged, and the only thing that improved is that the reason is now organizational rather than architectural.
+
+That also lands on a premise, not just on a schema. DESIGN.md section 5 asserts that identity is a rigid designator, minted at spawn, immutable while state evolves, and lists \texttt{o.i} first among its examples. Under per-machine counters that was false, and not marginally: \texttt{o.i = 1} designated the consensus rule on the Names instance and would have designated something else entirely on yours, which is the opposite of rigid. Under \texttt{uuidv7} it plausibly holds, and plausibly is the right word, because a designator that has never had to designate across two machines that both hold data has not yet been asked the question.
+
+\textbf{The time-series machinery is untouched.} \texttt{r} was a TimescaleDB hypertable with compression enabled and it held exactly one chunk, spanning 2026-07-02 to 2026-07-09, uncompressed. The whole archive was asserted between 2026-07-04 and 2026-07-06, so \texttt{min(t)} and \texttt{max(t)} on that database were two days apart and told you when the ingestion ran, not when anything happened. That was correct behavior, since \texttt{t} is assertion time and always was, but it meant every chunking and compression claim in Part II was a claim about a configuration and not about a measurement. Nothing there was ever compressed, and the 30-day compression policy that would eventually have compressed it never got to run, because the instance did not live 30 days.
+
+\section{What transfers and what does not}
+
+Transfers, because it is genome:
+
+\begin{itemize}
+  \item The two tables, unchanged. This lineage added zero tables to hold 178{,}561 objects across four sources, and the instrument lineage adds zero tables too. If a source seems to need a table, the source is being modeled wrong.
+  \item \texttt{component()}, with the caveat that $min\_c$ is a dial you will have to turn for your own data and that the right setting is not discoverable from first principles.
+  \item Retraction by outcome row, and the discipline of querying \texttt{r\_active}. The 9{,}374 retracted \texttt{same} witnesses cost nothing to keep and were the only record of how the shared-mailbox error was found.
+  \item The blob boundary. One percent graph, ninety-nine percent bytes, addressed by hash. This will be more extreme for you, not less.
+  \item \rulerow{window-censoring-v1}, which is in your instance already and which this lineage paid for.
+  \item The habit that made both rules: run the thing against real data, look at the output as a human, and when it lies, write down the rule rather than patching the query.
+\end{itemize}
+
+Does not transfer, because it is tissue:
+
+\begin{itemize}
+  \item Every rule with the word mailbox in it. Those rules are not merely inapplicable to an instrument lineage; they no longer exist outside the dump and this chapter. Their \emph{shape} may still be worth something: the dominance-versus-count distinction is likely to reappear the first time you try to decide whether a shared analysis account is a person.
+  \item The \texttt{coauthor} view and the whole Paperpile-to-email join. That join is what \texttt{bib-name=\allowbreak email-name} was, and it is a bridge between two sources you do not have.
+  \item Every number in this chapter.
+  \item The 178{,}561 objects themselves. You will never read them, and neither will anyone else unless somebody restores the dump. The instrument lineage was never going to be built on top of this one; it is a sibling grown from the same genome, and the only thing they would ever have shared is the schema and the rules.
+\end{itemize}
+
+\section{Why this chapter is still here}
+
+The reason this chapter is at the back rather than distributed through Part I is that a reader with an empty database learns nothing from being told there were 44{,}396 active \texttt{same} witnesses somewhere else. That was true when the somewhere else was running. It is more true now that it is a file.
+
+The reason it is here at all is narrower than it used to be, and it is worth being clear-eyed about the trade. This chapter used to be the book's evidence that the design works. It is not that any more, because the thing it described has been switched off, and there is nothing running with data in it to point at instead. What it is now is the book's only evidence that the design was ever \emph{stressed}: that somebody pointed these two tables at 600{,}000 messages and 6{,}700 papers and two calendars, and that when the substrate was wrong, the wrongness was findable, nameable, and expressible as a row. Twice that produced a rule. Once it produced a correction. Once it produced a scar that could not be excised and was carried instead.
+
+And then the whole thing was ended in a morning, because Jeremy decided the derived structure was not worth what it would cost to migrate, and because the facts it was derived from were never in it to begin with. They are still in \texttt{E:\textbackslash egres-raw}. They are still in Paperpile. He is re-introducing them himself, on his own schedule, into an instance whose identity is the moment it was born and whose clock counts from an origin no one owns.
+
+The instance you booted is not this one's descendant. It is not this one's replacement either. It is a sibling that was born after the older one died, from the same genome, carrying one rule the older one earned and a dozen sentences of hard-won advice in a chapter about a file.

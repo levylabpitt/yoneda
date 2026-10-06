@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>notebook · yoneda</title>
+<meta name="description" content="Install Yoneda Notebook: a lab notebook for your own computer that arranges itself around the research you actually do.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📓</text></svg>">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #f7f5f0; --ink: #26221a; --muted: #6f6758; --accent: #b07a1e;
+    --code-bg: #efece4; --line: #ddd6c8;
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --mono: ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14120d; --ink:#e8e2d4; --muted:#9a917e; --accent:#e0aa3e;
+            --code-bg:#1e1b14; --line:#2e2a20; }
+  }
+  :root[data-theme="dark"] { --bg:#14120d; --ink:#e8e2d4; --muted:#9a917e;
+    --accent:#e0aa3e; --code-bg:#1e1b14; --line:#2e2a20; }
+  :root[data-theme="light"] { --bg:#f7f5f0; --ink:#26221a; --muted:#6f6758;
+    --accent:#b07a1e; --code-bg:#efece4; --line:#ddd6c8; }
+
+  html { background: var(--bg); }
+  body { background: var(--bg); color: var(--ink); font-family: var(--serif);
+         font-size: 1.05rem; line-height: 1.65; margin: 0; }
+  .wrap { max-width: 42rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+
+  header.site { display: flex; align-items: baseline; gap: 0.75rem;
+                border-bottom: 1px solid var(--line); padding-bottom: 1.25rem; }
+  .wordmark { font-family: var(--mono); font-size: 1.5rem; font-weight: 600;
+              letter-spacing: -0.02em; }
+  .wordmark .tld { color: var(--accent); }
+  .tagline { font-style: italic; color: var(--muted); margin: 1.25rem 0 0; }
+
+  h2 { font-size: 1.3rem; font-weight: 600; margin: 2.75rem 0 0.75rem;
+       text-wrap: balance; }
+  h2 .k { font-family: var(--mono); font-size: 0.8rem; font-weight: 500;
+          color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
+          display: block; margin-bottom: 0.35rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .dl { display: inline-block; font-family: var(--mono); font-size: 0.95rem;
+        border: 1px solid var(--accent); border-radius: 3px; padding: 0.7rem 1.1rem;
+        margin: 0.75rem 0; text-decoration: none; }
+  .dl:hover { background: var(--code-bg); }
+  .dl small { color: var(--muted); }
+
+  ol.steps { list-style: none; counter-reset: step; margin: 1.5rem 0; padding: 0;
+             display: flex; flex-direction: column; gap: 1.4rem; }
+  ol.steps > li { counter-increment: step; padding-left: 3rem; position: relative; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0.1em;
+    font-family: var(--mono); font-size: 0.95rem; color: var(--accent);
+    border: 1px solid var(--line); border-radius: 2px; width: 1.7rem; height: 1.7rem;
+    display: flex; align-items: center; justify-content: center; }
+  ol.steps b { font-weight: 600; }
+
+  code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg);
+         padding: 0.1em 0.35em; border-radius: 2px; }
+
+  dl.faq dt { font-weight: 600; margin-top: 1.5rem; }
+  dl.faq dd { margin: 0.4rem 0 0; }
+
+  footer.site { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.9rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+</style>
+
+<div class="wrap">
+<header class="site">
+  <span class="wordmark">yoneda<span class="tld"> notebook</span></span>
+</header>
+
+<p class="tagline">A lab notebook for your own computer. It arranges itself around the research you actually do, and it keeps everything you put into it.</p>
+
+<h2><span class="k">install</span>Windows, two clicks</h2>
+<ol class="steps">
+  <li><b>Download the installer</b>, about 11 megabytes.<br>
+    <a class="dl" href="https://github.com/levylabpitt/yoneda-notebook/releases/latest">YonedaNotebook-Setup.exe <small>· 11 MB</small></a><br>
+    The notebook is in use inside the lab and is not being handed out more widely
+    yet, so the download lives in the lab's GitHub. Sign in as a lab member and it
+    is the first file under the latest release. It installs under your own Windows
+    account, so a managed university machine will take it without administrator
+    rights or a call to IT.</li>
+  <li><b>Run it.</b> Windows may say it does not recognize the program, since it
+    is new and not yet signed. Click <b>More info</b>, then <b>Run anyway</b>.</li>
+  <li><b>Your browser opens the notebook</b>, and a small icon appears in the tray
+    next to the clock. Left-click it to bring the notebook back whenever you want
+    it, and right-click for Open and Quit. The notebook runs on your machine and
+    stays there.</li>
+  <li><b>Setting up takes about a minute.</b> Point it at a folder of your files
+    and it builds the notebook around them: the forms you fill in, the views you
+    browse, and a short manual written for you. A physicist and a photographer
+    end up with different notebooks.</li>
+</ol>
+
+<h2><span class="k">setup</span>The AI that designs it</h2>
+<p>An AI does that design. You can let the notebook call one for you, using a key
+you supply, or you can copy the prompt it hands you into whatever AI you already
+use and paste the answer back. Take the second route and nothing leaves your
+computer at all. Either way, what the AI sees is the names of your files, their
+types, their folders and their dates. It never sees what is inside them. If you
+would rather not involve an AI, the notebook can read those same file names itself
+and set you up without one.</p>
+
+<h2><span class="k">your data</span>One file, and nothing thrown away</h2>
+<p>The whole notebook is a single file on your computer. Your measurements and
+documents stay where they already sit: logging a four gigabyte data file records
+where it lives and what it belongs to, and costs you almost nothing. Nothing you
+enter is ever deleted. When something turns out to be wrong you mark it as
+withdrawn, and it stays in the record, because a mistake you can still see is
+worth more than a tidy file you cannot check. Two people who have each kept their
+own notebook can put them together later, straight from one machine to the other,
+and the merge takes care of itself.</p>
+
+<dl class="faq">
+  <dt>Mac or Linux?</dt>
+  <dd>The Windows installer is the packaged version. Elsewhere you run the
+  program from its source, which needs Python and nothing beyond it.</dd>
+  <dt>What happens if I stop using it?</dt>
+  <dd>Uninstall from Windows Settings, under Apps. Your notebook file stays where
+  it is. It is an ordinary database file, so what you wrote remains readable
+  without this program, or any program of ours.</dd>
+  <dt>Working next to an instrument?</dt>
+  <dd>If you want a notebook that watches an instrument and records every file it
+  produces, <a href="/start">there is a separate setup for that</a>.</dd>
+</dl>
+
+<footer class="site">
+  <span><a href="/">yoneda</a></span>
+  <span><a href="/start">/start</a></span>
+  <span><a href="/make">/make</a></span>
+</footer>
+</div>
+</body>
+</html>

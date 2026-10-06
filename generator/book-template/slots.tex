@@ -1,0 +1,216 @@
+% Yoneda book template: slot definitions.
+% Safe, generic defaults so an un-filled book still compiles and reads sensibly.
+% \providecommand means a lab profile can override any of these with \renewcommand.
+% Do NOT edit per lab; edit a profile-<lab>.tex instead.
+
+\providecommand{\labBackupStore}{the nightly backup}
+\providecommand{\labBlobFormat}{your blob format}
+\providecommand{\labBlobFormatExt}{bin}
+\providecommand{\labBlobMediaType}{application/octet-stream}
+\providecommand{\labCarrier}{carrier}
+\providecommand{\labColdComponent}{cold-stage}
+\providecommand{\labColdCondition}{at base}
+\providecommand{\labColdId}{cryostat}
+\providecommand{\labColdOnset}{reached base}
+\providecommand{\labColdRun}{run}
+\providecommand{\labColdSystem}{your cryostat}
+\providecommand{\labColdSystemAlt}{the second system}
+\providecommand{\labColdSystemColloquial}{the cryostat}
+\providecommand{\labColdSystemShort}{cryostat}
+\providecommand{\labColdTemp}{base temperature}
+\providecommand{\labColleague}{a collaborator}
+\providecommand{\labColleagueAddr}{\texttt{collaborator@example.edu}}
+\providecommand{\labColleagueComponentSize}{N}
+\providecommand{\labColleagueDesc}{has a long history in the corpus and is well known to the person who built this database}
+\providecommand{\labColleagueNameEdges}{N}
+\providecommand{\labColleagueNoun}{person}
+\providecommand{\labCorpus}{your corpus}
+\providecommand{\labDAQ}{your DAQ software}
+\providecommand{\labDevice}{instrument}
+\providecommand{\labDeviceGeometry}{device geometry}
+\providecommand{\labDeviceModel}{your model}
+\providecommand{\labDeviceSerial}{SERIAL-0001}
+\providecommand{\labDomain}{your domain}
+\providecommand{\labDuration}{many months}
+\providecommand{\labEmail}{collaborator}
+\providecommand{\labFabChamber}{growth chamber}
+\providecommand{\labFabLog}{fabrication logs}
+\providecommand{\labFigure}{a measurement curve}
+\providecommand{\labFileExt}{dat}
+\providecommand{\labFileFormat}{your file format}
+\providecommand{\labFridge}{cryostat}
+\providecommand{\labGate}{control parameter}
+\providecommand{\labGateBeyond}{beyond the rated range}
+\providecommand{\labGateRange}{its rated range}
+\providecommand{\labGrowthLog}{growth log}
+\providecommand{\labHost}{rig-01}
+\providecommand{\labImaging}{an image}
+\providecommand{\labInstance}{your first instance}
+\providecommand{\labInstrument}{your instrument}
+\providecommand{\labInstrumentShort}{instrument}
+\providecommand{\labInstrumentVendor}{your vendor}
+\providecommand{\labLineage}{your lineage}
+\providecommand{\labLineageActive}{most of them}
+\providecommand{\labLineageArchiveStart}{the archive start}
+\providecommand{\labLineageAssertSpan}{two days}
+\providecommand{\labLineageBlobExample}{A large raw acquisition is many points; the assertion that someone took it on a particular sample is one row.}
+\providecommand{\labLineageBlobSchema}{blob}
+\providecommand{\labLineageBlobSize}{many gigabytes}
+\providecommand{\labLineageBlobUnit}{blob rows}
+\providecommand{\labLineageBornOf}{the owner's source records}
+\providecommand{\labLineageCalendars}{the calendars}
+\providecommand{\labLineageChunkSpan}{a one-week span}
+\providecommand{\labLineageCleanWrong}{a clean but incomplete component that has lost the person's other addresses}
+\providecommand{\labLineageCoauthorJoin}{The \texttt{coauthor} view and the whole cross-source join, which is a bridge between two sources you do not have.}
+\providecommand{\labLineageComponentTotal}{N}
+\providecommand{\labLineageConsensusRows}{N}
+\providecommand{\labLineageContested}{N}
+\providecommand{\labLineageContrast}{years of records never settled the identities}
+\providecommand{\labLineageCorpus}{a large archive of records with their attachments}
+\providecommand{\labLineageCorrectionSpelling}{Some corrections were tagged one way and one was tagged another, and that one is the subject of section~\ref{sec:consensus-view-fix}.}
+\providecommand{\labLineageDominantFraction}{Most}
+\providecommand{\labLineageDominantKind}{your primary source}
+\providecommand{\labLineageDominantObject}{primary-record}
+\providecommand{\labLineageDominantObjectDef}{a single observed sighting}
+\providecommand{\labLineageDump}{a dump file}
+\providecommand{\labLineageDumpFile}{the pre-wipe dump}
+\providecommand{\labLineageDumpPath}{your backup directory}
+\providecommand{\labLineageDupObjA}{an object id}
+\providecommand{\labLineageDupObjB}{another object id}
+\providecommand{\labLineageDupRel}{a relation id}
+\providecommand{\labLineageFailure}{a single shared identifier carrying many names fused most of a corpus into one nonexistent entity}
+\providecommand{\labLineageFixWindow}{a few hours}
+\providecommand{\labLineageGame}{the recall game built on top of this instance}
+\providecommand{\labLineageGameDate}{one day}
+\providecommand{\labLineageGarbage}{two shared service addresses that had once carried the person's display name}
+\providecommand{\labLineageGraphSize}{tens of megabytes}
+\providecommand{\labLineageGraphTotalSize}{a fraction of the whole}
+\providecommand{\labLineageGrewWhen}{over a short burst of work}
+\providecommand{\labLineageHandCount}{a handful}
+\providecommand{\labLineageIdentityTable}[1]{%
+primary@example.edu & N & N \\
+alt@example.edu & N & 0 \\
+\midrule
+total & N & N \\
+}
+\providecommand{\labLineageKindTable}[1]{%
+your primary record kind & N \\
+a second kind & N \\
+a third kind & N \\
+}
+\providecommand{\labLineageKindTail}{a handful of one- and two-of-a-kind object kinds}
+\providecommand{\labLineageLevelOne}{N}
+\providecommand{\labLineageLifetime}{a short life}
+\providecommand{\labLineageMailboxBlowup}{thousands of}
+\providecommand{\labLineageMailboxDate}{one day}
+\providecommand{\labLineageMedium}{records}
+\providecommand{\labLineageMessages}{N}
+\providecommand{\labLineageMessagesRound}{hundreds of thousands}
+\providecommand{\labLineageName}{your first lineage}
+\providecommand{\labLineageNameOrigin}{after whatever the project was called before}
+\providecommand{\labLineageNewInstanceId}{a fresh instance id}
+\providecommand{\labLineageOSize}{tens of megabytes}
+\providecommand{\labLineageObjects}{N}
+\providecommand{\labLineageOutcomes}{N}
+\providecommand{\labLineagePapersRound}{several thousand}
+\providecommand{\labLineagePeerMachine}{A second machine}
+\providecommand{\labLineagePlace}{your city}
+\providecommand{\labLineageRelBreakdown}{your dominant relation types in descending count, then a long tail in the single digits}
+\providecommand{\labLineageRelations}{M}
+\providecommand{\labLineageRetracted}{many of them}
+\providecommand{\labLineageRetractedPct}{a large fraction}
+\providecommand{\labLineageRetractedRows}{N}
+\providecommand{\labLineageRule}{a tissue rule}
+\providecommand{\labLineageRuleRowA}{an object id}
+\providecommand{\labLineageRuleRowB}{another object id}
+\providecommand{\labLineageRuleRows}{several}
+\providecommand{\labLineageSameActive}{N}
+\providecommand{\labLineageSameRaw}{N}
+\providecommand{\labLineageSameRetracted}{N}
+\providecommand{\labLineageScale}{hundreds of thousands of records}
+\providecommand{\labLineageSeatAddr}{primary address}
+\providecommand{\labLineageSeatCount}{N}
+\providecommand{\labLineageSeatYears}{many years}
+\providecommand{\labLineageSharedMailboxPath}{a placeholder identifier and a set of shared service addresses that carry whoever's name is attached}
+\providecommand{\labLineageSize}{a few gigabytes}
+\providecommand{\labLineageSource}{the source records}
+\providecommand{\labLineageSourceCount}{several}
+\providecommand{\labLineageSourceRaw}{your raw source tree}
+\providecommand{\labLineageSources}{your primary sources}
+\providecommand{\labLineageSourcesIntact}{The raw sources are still where they always were, unchanged.}
+\providecommand{\labLineageSourcesStillThere}{They are still in your raw source tree.}
+\providecommand{\labLineageStagedCount}{many records}
+\providecommand{\labLineageStagedSource}{one source}
+\providecommand{\labLineageStagingSize}{some tens of megabytes}
+\providecommand{\labLineageThreeSources}{your primary sources}
+\providecommand{\labLineageTissueRuleName}{a tissue rule}
+\providecommand{\labLineageTissueRuleWord}{shared identifier}
+\providecommand{\labLineageTypeRefs}{N}
+\providecommand{\labLineageVariantList}{many display-name variants of one address, casing and punctuation and typos preserved, some of them not even a name}
+\providecommand{\labLineageWindowEdge}{the year before the archive}
+\providecommand{\labLineageWindowLabExample}{the same defect is waiting in every lab lineage that reports a first occurrence, when the record of it starts only just before that date.}
+\providecommand{\labLineageWindowSubject}{an old contact}
+\providecommand{\labLineageWindowYear}{a given year}
+\providecommand{\labLineageWipeDate}{its wipe date}
+\providecommand{\labLineageWitnessEvidence}{domain-specific hand-asserted evidence strings}
+\providecommand{\labLineageWitnessKinds}{a few dominant witness kinds, one of which joins two of your sources}
+\providecommand{\labLocation}{the lab}
+\providecommand{\labLockin}{instrument}
+\providecommand{\labLog}{a run log}
+\providecommand{\labMagnet}{your magnet}
+\providecommand{\labMagnetReadout}{field readback}
+\providecommand{\labMagnetShort}{magnet}
+\providecommand{\labMailCorpus}{a large record corpus spanning many years}
+\providecommand{\labMailDomain}{example.edu}
+\providecommand{\labMaterialShort}{your material}
+\providecommand{\labMaterialWord}{material}
+\providecommand{\labMeasurement}{your measured quantity}
+\providecommand{\labMediaType}{application/octet-stream}
+\providecommand{\labOwner}{the owner}
+\providecommand{\labOwnerAddr}{\texttt{pi@example.edu}}
+\providecommand{\labPI}{the PI}
+\providecommand{\labPIHandle}{pi}
+\providecommand{\labPedagogyDoc}{a pedagogical document}
+\providecommand{\labPedagogyEnd}{practical application}
+\providecommand{\labPedagogyLines}{several hundred}
+\providecommand{\labPerson}{a collaborator}
+\providecommand{\labPlaceholderLabel}{Image0001}
+\providecommand{\labPriorDocA}{an earlier draft}
+\providecommand{\labPriorDocB}{a second draft}
+\providecommand{\labPriorDrafts}{earlier drafts}
+\providecommand{\labPriorField}{identifier}
+\providecommand{\labPriorUnit}{record}
+\providecommand{\labPropertyDistinct}{the quantities you will actually publish}
+\providecommand{\labPropertyShared}{the properties shared across a batch}
+\providecommand{\labReadingA}{1.00 V}
+\providecommand{\labReadingB}{1.02 V}
+\providecommand{\labReadout}{the instrument output}
+\providecommand{\labRun}{run}
+\providecommand{\labRunFailure}{The measurement was misconfigured and the reading is wrong}
+\providecommand{\labRunFailureReason}{measurement misconfigured}
+\providecommand{\labRuns}{runs}
+\providecommand{\labSample}{SAMPLE-0001}
+\providecommand{\labSampleAlt}{0001}
+\providecommand{\labSampleAltShort}{0002}
+\providecommand{\labSampleCarrier}{carrier}
+\providecommand{\labSampleChip}{0001-2}
+\providecommand{\labSampleClass}{devices}
+\providecommand{\labSampleHandLabel}{sample 0001}
+\providecommand{\labSampleLoss}{was lost}
+\providecommand{\labSampleLower}{sample-0001}
+\providecommand{\labSampleNoun}{device}
+\providecommand{\labSampleNounPl}{devices}
+\providecommand{\labSamplePostbond}{0001-2\_postbond}
+\providecommand{\labSampleScanLabel}{0001\_scan\_01}
+\providecommand{\labSampleShort}{0001}
+\providecommand{\labSampleUnrelated}{SAMPLE-9999}
+\providecommand{\labSampleWord}{sample}
+\providecommand{\labScalar}{a scalar quantity}
+\providecommand{\labScalarAlt}{another scalar quantity}
+\providecommand{\labScalarAltTwo}{a third scalar quantity}
+\providecommand{\labScan}{scan}
+\providecommand{\labScratchMachine}{a scratch machine}
+\providecommand{\labSweepParam}{the swept parameter}
+\providecommand{\labVenue}{your institution}
+\providecommand{\labVenueAlt}{another venue}
+\providecommand{\labVenueCity}{your city}

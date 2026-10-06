@@ -1,0 +1,56 @@
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+.env
+blobs/
+__pycache__/
+*.dump
+node_modules/
+.wrangler/
+brand/fonts/
+brand/*.png
+brand/*.npy
+brand/yo_*.mp4
+brand/yo_*still*.png
+brand/_brush_check.png
+brand/_site_mark_paths.txt
+brand/_brush_preview*
+brand/yoneda-brush-preview.png
+brand/frames/
+brand/yo_paint.webm
+generator/book-template/build-*/
+generator/book-template/*.pdf
+generator/book-template/*.aux
+generator/book-template/*.log
+generator/book-template/*.fls
+generator/book-template/*.fdb_latexmk
+generator/book-template/*.out
+generator/book-template/*.toc
+compile-container/generator/book-template/
+*.pdf.bak
+
+# --- private brain + ops, merged in from projects\Names on 2026-07-26 ---
+# These sync to every machine via Dropbox and must never reach GitHub: each of
+# them carries the local Postgres credentials or is machine-specific setup.
+/CLAUDE.md
+/NEEDS-JEREMY.md
+/INBOX-ACTIONS.md
+/docker-compose.yml
+/ydb.ps1
+/ydb-ask.ps1
+/backup-ydb.ps1
+/compile_people.py
+/pixelfold-watch.py
+/pixelfold-watch.state.json
+/bootstrap/
+/console/
+/game/
+/tools/
+
+# machine-local Claude permission state
+.claude/settings.local.json

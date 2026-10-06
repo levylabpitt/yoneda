@@ -1,0 +1,203 @@
+\chapter{Open Problems}
+
+This chapter is an index and it adds no argument. Every \tier{open} in this book is collected here, one paragraph each, with its settlement condition restated and an estimate of what it costs to settle. If you have read nothing else and want to do something, read this and pick a line.
+
+The ranking is by ratio of value to cost. Both terms of that ratio are judgments, and the cost column in particular is an estimate made by the people who wrote the chapters, not a measurement made by anyone who tried. Treat the numbers as a first pass at triage, which is what they are.
+
+The list was re-read against the live instance on 2026-07-17, after the big bang. That matters more than the usual re-read, because the instance the earlier drafts measured no longer exists. It was wiped and reborn from the stem cell at \labPI's instruction, and it now holds ten objects (nine rule rows and one big-bang event) and zero relations. Its identity is \texttt{019f6e4d-adb0-7c46-9d4b-ce4fbe666174}, which is the \texttt{o.i} of its birth. The old universe (178,561 objects, 256,619 relations, 601,094 email messages) is archived, not deleted, at \texttt{backups/ydb/ydb-pre-bigbang-2026-07-17.dump}, 1.18 GB on disk. \labPI{} is re-introducing names, papers and emails himself, on his own schedule.
+
+Three things follow for this chapter, and they are not cosmetic. First, several items had their evidence pulled out from under them: an item whose value was argued from 256,619 rows is now an item about a table with zero rows, and where that changes the cost or the argument it is said so in the entry. Second, one item was dissolved rather than solved, and it is recorded that way in \textit{What came off this list}. Third, the wipe removed a defect this book had said in print could not be removed, which is discussed on its own below because it deserves more than a quiet edit.
+
+\begin{Check}
+-- the whole live instance, 2026-07-17
+SELECT count(*) FROM o;                                    -- 10
+SELECT count(*) FROM r;                                    -- 0
+SELECT count(*) FROM o WHERE j->>'type' = 'rule';          -- 9
+SELECT instance_id();  -- 019f6e4d-adb0-7c46-9d4b-ce4fbe666174
+SELECT to_regclass('email.messages');                      -- NULL
+\end{Check}
+
+\section{The list}
+
+\begin{Open}{1. Give branches a parent pointer}{Add ancestry to \texttt{b}, then run a two-author merge loop and see whether the realized state depends on order.}
+Settlement: add a parent column (or a parent-of relation) to branches, so that \texttt{b} carries ancestry and two branches can share an origin. Then a merge is a loop: origin, branch A, realize, against origin, branch B, realize. Path-dependence becomes testable by running it on a real two-author document and measuring whether the realized state depends on the order. Cost: one column, plus deciding whether ancestry belongs in the schema or in a relation. Value: without it there is no ancestry relation between branches at all, so there is no loop, no path to be dependent on, and no geometry to have an opinion about. Chapter 15 argues that \rulerow{divergence-is-data-v1}'s curvature clause is currently a claim about a space the database cannot represent. This is the column that would let it be represented. It is still the best ratio in the book, and the reset made it cheaper rather than more expensive: \texttt{r} is empty, so adding the column costs no backfill. See Chapter 15.
+\begin{Check}
+-- b is a bare per-row UUID with no ancestry, in the live instance and in
+-- stem-cell.sql alike
+b UUID NOT NULL DEFAULT gen_random_uuid()
+-- and there is nothing to migrate
+SELECT count(*) FROM r;   -- 0
+\end{Check}
+\end{Open}
+
+\begin{Open}{2. Give witnesses a value}{Fix a \texttt{v} convention for value-asserting witness types now, before ingest puts rows in \texttt{r} without one.}
+Settlement: add a \texttt{v} field to witnesses that assert a value, at ingest, and measure. Cost: a schema convention, not a schema change. This item has moved up the list, and the reason is worth stating because it is the only place the big bang made an open problem easier. In the archived universe the fix was a backfill of 256,619 rows. In the live one there are no rows to backfill, and the corpus is about to be re-ingested from scratch, so the convention can be established before the data arrives instead of retrofitted after. It is the cheapest it will ever be, and it will get monotonically more expensive from here. Value: the consensus law has no corpus. The linear-versus-Born argument, the justification \rulerow{divergence-is-data-v1} gives for rejecting CRDTs, and everything Chapter 16 says about whether the exponent is free are all being conducted over a view that has nothing to render. Fixing that view to read \texttt{r\_active} did not touch this and could not have: it changed which witnesses are counted, not whether any of them assert a value. See Chapters 8 and 16.
+\begin{Check}
+-- the archived universe: one witness in a quarter of a million carried a value
+SELECT count(*) FROM r WHERE d ? 'v';   -- 1, out of 256,619
+-- the live one: the same number, arrived at differently
+SELECT count(*) FROM r WHERE d ? 'v';   -- 0, out of 0
+SELECT count(*) FROM consensus;         -- 0 groups
+\end{Check}
+\end{Open}
+
+\begin{Open}{3. Fit the staleness decay}{Regress confirmation and clash outcomes against fact age, per fact type, and replace the decreed curve with a measured one.}
+Settlement: run the regression over \labCorpus{} and replace \texttt{decay(fact\_type, age)} with a measured curve. Separately, fix the functional form: decay toward a base rate, not toward zero. Cost: the rule is there, the method is written into the rule's own text (\textit{``Decay curves are to be FIT from the corpus (empirical half-life of the fact type), not decreed''}), and the rule has said \texttt{status: proposed, not yet fit} since 2026-07-04. What is no longer there is the corpus. It was ingested, it was never regressed against, and it left with the rest of the old universe; it now exists in the archive dump and in \labLineageSource{} it was derived from, which means the first step of this item is now item 5 rather than a query. That is a real cost increase and it is nobody's fault but the schedule's: the regression was available for thirteen days and was not run. Value: it would be the first seed prior in the entire tower ever replaced by a measurement, which would make the tower a tower rather than a diagram of one. The functional-form point is a separate free choice nobody flagged as one: multiplicative decay to zero says an affiliation eventually becomes unknown, when what it should become is the base rate, because most people do not move. See Chapter 17.
+\begin{Check}
+-- the rule survived the wipe; the data it wanted did not
+SELECT j->>'status' FROM o WHERE j->>'name' = 'staleness-decay-v1';
+  -- proposed, not yet fit
+\end{Check}
+\end{Open}
+
+\begin{Open}{4. Build the sync channels}{Write the merge path between two instances and run it on two containers that never communicated.}
+Settlement: implement a channel that moves \texttt{o} and \texttt{r} rows between instances, run it between two independently booted copies, and check that the union is what both of them think it is. Cost: unknown, and it is the largest unknown on this list, because nothing about it has been attempted. Value: merge is the reason the identity scheme was fixed at all. The whitepaper's section 7 called per-machine counters \textit{``the only thing standing between the current single-machine design and painless local copies''}, and that blocker is now gone: \texttt{uuidv7()} and \texttt{uuid\_from\_sha256()} mean two machines can mint names without coordinating. But an unblocked path that nobody has walked is not a path. There is no channel, no wire format, no conflict story beyond \textit{keep both}, and no test. Note precisely what was and was not achieved on 2026-07-17: the identity blocker was removed, and the thing it was blocking was not built. Items 7 and 8 are both properties this channel would have to have, and both are unsettled, which is a reasonable hint that the channel is not a weekend. See Chapters 11 and 12.
+\end{Open}
+
+\begin{Open}{5. Re-derive the archived universe from its sources}{Re-ingest \labLineageSources{} into the new instance and compare the result against the dump.}
+Settlement: run the ingest again, then diff. The archived universe is not the target and should not be restored: it is the control. If the sources are what the design says they are, then re-running the pipelines against them should produce a universe that agrees with the archive wherever the pipelines have not changed, and the places it disagrees are either bugs found or improvements made, and either way they are findings. Cost: real, and unmeasured. The first ingest took days of wall clock and the pipelines were written as they went. Value: three separate things at once, which is why it ranks where it does despite the cost. It gives item 3 its corpus back. It supplies item 2's convention with something to apply to. And it is the first honest test of a claim the design has always made and never had occasion to check, namely that the database is derived from its sources and holds nothing that cannot be recomputed from them. That claim is what made the wipe survivable. Nobody has ever tested it, and until this item is done, the reason the big bang was affordable is a belief. Note that the test has a real chance of failing in an interesting way: anything hand-entered, hand-corrected or hand-merged in the old universe has no source to be re-derived from, and every such row is a counterexample to the claim. Counting them is the cheap half of this item and could be done today, against the dump.
+\begin{Check}
+-- the control, on disk, 1.18 GB
+backups/ydb/ydb-pre-bigbang-2026-07-17.dump
+-- restore it to a THROWAWAY container on a spare port, never to the live
+-- instance: the point is to compare against it, not to become it again
+\end{Check}
+\end{Open}
+
+\begin{Open}{6. Build a mechanism for retracting \texttt{o} rows at all}{Decide what an outcome pointing at an \texttt{o.i} means, and implement it.}
+Settlement: decide, then build the view. The mechanism cannot simply be copied from \texttt{r\_active}, because \texttt{o} has no time column and no notion of latest. Cost: a design decision plus a view. Value: rules live in \texttt{o}, and the outcome machinery covers \texttt{r} only, so rules are the one thing in the system that cannot be retracted by the system's own retraction law. This item used to lead with an instance: the byte-identical duplicate \rulerow{shared-mailbox-v1} at \texttt{o.i} 113403 and 113404, and a supersession string naming a name that denoted both rows. That instance is gone, along with the universe it was in, and the general defect is untouched. Read that carefully, because the temptation is to feel that something was fixed. Nothing was. The live instance has nine rule rows, no duplicates among them, and exactly the same inability to say in its own language that one of them is spurious. It has no corrections in \texttt{o} either, which is not evidence of health: it is four hours old. The first time a rule is superseded here, this item will be a problem again, and it will be a problem with no instance attached, which historically is how items sit on this list for a year. See Chapter 9.
+\begin{Check}
+-- the live instance: no duplicate rule names, and no mechanism either
+SELECT j->>'name', count(*) FROM o WHERE j->>'type'='rule' GROUP BY 1 HAVING count(*) > 1;
+  -- 0 rows
+SELECT count(*) FROM o WHERE j->>'type' IN ('correction','supersession');
+  -- 0
+-- and the machinery that does exist still points only at r.i
+SELECT pg_get_viewdef('r_active'::regclass, true);   -- (rx.d->>'of')::uuid = r.i
+\end{Check}
+\end{Open}
+
+\begin{Open}{7. Exhibit a uniqueness mechanism for \texttt{r.i}, or accept that retraction targets are unenforced}{Find a unique constraint compatible with hypertable partitioning, or write the audit and say so in a rule row.}
+Settlement: one or the other, in writing. Cost: possibly unpayable. This is the half of the old globally-unique-names item that the UUID change did not touch, and the reset did not touch it either, which is worth saying because everything else in this neighbourhood moved. Making \texttt{r.i} a UUID makes accidental collision vanishingly unlikely; it does not make it enforced. TimescaleDB requires that a unique constraint include the partitioning column, \texttt{r} is partitioned on \texttt{t}, and so \texttt{r\_i\_idx} is a plain index and nothing in the database refuses a second row with the same \texttt{i}. Value: \texttt{r.i} is what outcomes point at. An unenforced identifier is a fine engineering trade and it is a bad thing to believe you do not have. Settling this may well mean choosing the audit and saying so in a rule row. See Chapter 11.
+\begin{Check}
+-- verified on the live instance, 2026-07-17
+SELECT column_name FROM timescaledb_information.dimensions WHERE hypertable_name='r';
+  -- t
+SELECT indexdef FROM pg_indexes WHERE indexname='r_i_idx';
+  -- CREATE INDEX r_i_idx ON public.r USING btree (i)   <- INDEX, not UNIQUE
+\end{Check}
+\end{Open}
+
+\begin{Open}{8. Cross-machine ordering}{Specify the total order \texttt{r\_active} resolves on, then show determinism and correctness under clock skew.}
+Settlement: specify it, then show both. Cost: unknown, and that is the finding. The identity change does not settle it and was never going to. A time-ordered name embeds a wall-clock millisecond, so it makes the tiebreak deterministic given the timestamps you have, and deterministic is not correct: two machines will agree on the answer and the answer may be the older correction. The stem cell's own comment concedes that much, saying the ordering is a free tiebreak precisely because \textit{``nothing downstream reads ordering as truth''}, which is an assumption about every future query rather than a proof about this one.
+
+There is a sharper version of the problem, and the live instance demonstrates it against itself on a single machine with no skew and no second party. \texttt{uuidv7()} as implemented overlays a millisecond onto a v4, so within any one millisecond the remaining bits are random and the ids are not monotonic. The nine rule rows were inserted by \texttt{stem-cell.sql} in a fixed order, and \texttt{consensus} is the second insert in the file. It sorts third. It shares its millisecond with \rulerow{boundary-ref-v1}, which was inserted after it, and lost the coin flip. So \texttt{ORDER BY rx.i DESC} is not merely comparable-but-not-correct across machines; sub-millisecond, it is a random tiebreak on one machine. That is harmless today because nothing reads it as truth, which is exactly the assumption this item exists to stop trusting. Value: the whitepaper's section 7 asserts the property that its own section 10 says is not secured. Until this is settled, latest-wins is a single-machine rule and, inside a millisecond, not quite that. See Chapter 12.
+\begin{Check}
+-- decode the embedded millisecond from each rule row's uuidv7
+SELECT j->>'name', i, to_timestamp(
+  ('x'||replace(substring(i::text,1,13),'-',''))::bit(48)::bigint / 1000.0) AS ms
+FROM o WHERE j->>'type'='rule' ORDER BY i;
+-- 019f6e4d-ada3-7391-...  boundary-ref-v1   04:20:12.323   <- inserted THIRD
+-- 019f6e4d-ada3-7ad1-...  consensus         04:20:12.323   <- inserted SECOND
+-- same millisecond, order decided by the random bits, insertion order lost
+\end{Check}
+\end{Open}
+
+\begin{Open}{9. Is a big bang legitimate more than once?}{Write down the conditions under which ending a universe is permitted, before the second time it is convenient.}
+Settlement: a rule row, and it does not exist. This item is new on 2026-07-17 and it exists because the reset worked. Cost: an afternoon of thinking and one row, and the reason to spend it now is that the question is easy while the answer is cheap and hard once it is not. Value: the big bang is the only operation in this design that removes history, and it works precisely because it is not a deletion within the system. It is a different system, with a new origin, and the old one is a frozen artifact on disk. \textit{Nothing is ever deleted} stays true of every universe; it says nothing about how many universes there are. That is an honest reading and it is also, unattended, a loophole large enough to drive the entire design through, because any inconvenient history can be escaped by declaring a new origin and calling the old one an artifact.
+
+State the cost of the one that was taken, plainly. The fix for a duplicated rule row was the loss of 178,561 objects, 256,619 relations and 601,094 messages. That was acceptable here for two specific reasons, and both are contingent rather than structural: \labPI{} judged that none of it was worth keeping, and the sources it was derived from still exist, which is item 5's whole subject and is itself unverified. Neither reason will hold at an arbitrary future moment. A big bang is not a repair technique. It is available once, cheaply, at birth, and it gets expensive fast: the price is everything derived since the last one that cannot be re-derived, and that quantity only grows. So the rule row should probably say something like: a new origin is permitted when the instance holds nothing that is not recomputable from surviving sources, the claim of recomputability has been tested rather than assumed, and the prior universe is archived before the new one boots. All three were true on 2026-07-17 except the middle one. Write it down before the second time.
+\end{Open}
+
+\begin{Open}{10. Let compression run past 30 days and measure}{Wait out one compression cycle on real data, read the ratio, and decide whether \texttt{compress\_segmentby='b'} survives it.}
+Settlement: wait, then read the chunk size ratio. Separately: specify what happens when a machine that was offline for two months inserts rows into a chunk that has already compressed. Cost: patience for the first half, real work for the second, and the clock restarted on the first half. The policy exists on the live instance and \texttt{r} has zero rows and zero chunks, so the earliest this can be measured is thirty days after real data lands, which is thirty days after item 5. Value: in the archived universe, \texttt{count(*)} and \texttt{count(distinct b)} on \texttt{r} both returned 256,619, so every branch had exactly one row and segmenting by branch produced 256,619 segments of one row each, which maximizes segment count and defeats the columnar compression it was chosen to enable. Compressed chunks: 0 of 1. The policy never ran. That measurement is now a measurement of an archive, and whether it describes the next universe depends on whether the re-ingest produces the same one-row-per-branch pattern, which it will unless something changes, because nothing in the design puts two rows on a branch. Every claim that compression makes retention cheap, including the genome's claim that this is what makes \rulerow{divergence-is-data-v1} affordable, remains a prediction. See Chapter 12.
+\begin{Check}
+SELECT count(*) FROM timescaledb_information.chunks WHERE hypertable_name='r';  -- 0
+SELECT job_id, proc_name FROM timescaledb_information.jobs WHERE hypertable_name='r';
+  -- 1000, policy_compression: scheduled, never run, nothing to run on
+\end{Check}
+\end{Open}
+
+\begin{Open}{11. Decide the streaming fingerprint}{Pick chunk-Merkle or prefix-hash, and first test whether \labFileFormat{} satisfies the append-only-bytes premise at all.}
+Settlement: measure both on a real multi-hour \labFileFormat{} acquisition on \labColdSystemShort{}. Then, separately and first, test the premise: \labDAQ{} writers update the index file, and defragmentation rewrites the file wholesale. Cost: an afternoon to instrument, a cooldown to measure. Value: prefix-hash is $O(n^2)$ over a long run; chunk-Merkle is $O(n)$ and gives incremental verification and prefix dedup for free. Nobody has chosen. And the premise question is prior to the choice: if the bytes already written do change, neither scheme is sound as stated. Untouched by the reset, because it is about files rather than rows. See Chapter 3.
+\end{Open}
+
+\begin{Open}{12. Make the Kan-extension universal property testable}{Give the target real structure, so that \textit{factors through} means entailment, then run a claim-extraction eval.}
+Settlement: profiles as sets of atomic extractable claims ordered by entailment. The Lan property then reads: the compiled profile entails exactly what the observations entail, no more (no hallucination) and no less (no omission). Check it with an eval against the corpus. Cost: an eval harness and a hand-labeled sample, plus, now, a corpus to run it against, which is item 5. Value: this is the only route by which \textit{``a profile is the left Kan extension of observation data along Obs to Person, with an LLM as the colimit-taking machine''} becomes something other than a slogan, and it converts an analogy into a correspondence. It has never been run, and the profile compiler that would be its subject has never been built. See Chapter 14.
+\end{Open}
+
+\begin{Open}{13. Exhibit a coverage for Obs, or stop calling it a site}{Exhibit a coverage, verify pullback-stability and locality, and prove one nontrivial descent statement.}
+Settlement: the candidate coverage on offer is that a family covers an observation when the witnesses jointly determine it; verify the axioms and prove something with them, such as that a profile is determined by its restriction to a covering family. Cost: real mathematics, and it may not work. Obs is not shown to have pullbacks, is given no composition law and no identities, and its witnesses are spans rather than morphisms. Value: \textit{site} is used four times in the founding document, no coverage is ever specified, and nothing sheaf-theoretic is ever done. It is the design's most serious unearned word and it sits at the foundation. The cheap resolution is to write \textit{category} and lose nothing. See Chapter 14.
+\end{Open}
+
+\begin{Open}{14. Make the renormalization criterion a test}{Name the null, name the statistic, pre-register the threshold, and run it.}
+Settlement: the null is that under the current top level's model, residual outcome errors are exchangeable; the statistic is autocorrelation of errors by evidence type, or a likelihood ratio against a level-$(n+1)$ model with one more free parameter. Cost: small, once items 2, 3 and 5 have supplied something to compute residuals from. It is gated on all three. Value: \textit{``ascend a level when the current top level's residual errors are systematic rather than noise''} is a hypothesis test with no null model. Until a statistic exists, the truncation level is chosen by hand, which is precisely what the tower was built to abolish. The tower still has one level and zero ascents, and the reset did not change that in either direction: a level is not a thing a wipe can take, because there was never a second one to take. See Chapter 9.
+\end{Open}
+
+\begin{Open}{15. Exhibit the proposition lattice and check orthomodularity}{Reformulate the consensus law as a measure over an explicit lattice of propositions, then check whether that lattice is Boolean.}
+Settlement: exhibit the lattice, check it. Cost: mathematics, and the likely answer is already visible: the propositions are value-claims, the lattice is Boolean, Gleason's conclusion is vacuous on a Boolean algebra, and $c^2$ is a free parameter that must be fit. Value: if anyone can exhibit a genuinely non-distributive proposition lattice here, $c^2$ is forced and the fit in item 2 is unnecessary. That would be the single most interesting result this project could produce, and it is the reason the item survives its own probable answer. It is also the only item on the list that is completely indifferent to how much data the instance holds, which is a fair description of both its appeal and its risk. See Chapter 16.
+\end{Open}
+
+\begin{Open}{16. Does the calibration loop converge to truth or to its own fixed point?}{Hold out a set resolved without the resolver's help, or instrument whether confirm and clash rates depend on the resolver's prior decisions.}
+Settlement: either test. Cost: hand labeling, which is the expensive kind of cheap. Value: \textit{``the observation stream supplies its own ground truth''} is the deepest unexamined assumption in the founding document. The future tests identifications only where the future looks, and the observation process is not independent of the resolver: merge two people and the clashes that would refute the merge may never be generated. If precision is measured only on outcomes the resolver's own merges made observable, \textit{calibrated, not assigned} is calibrated against itself. Neither test has been run. See Chapter 17.
+\end{Open}
+
+\begin{Open}{17. The privacy posture of a shared lab database about third parties}{A written policy the group has read, plus whatever access mechanism it turns out to require.}
+Settlement: write the re-analysis the founding document promised: who can read what, what happens to observations about people who are not in the lab, what consent covers camera images and voice, what an export means now that more than one person can trigger one, and what the retention policy is for the store that by construction never deletes. Not settled by a query. Cost: a meeting and a document, which is why it will slip. Value: it is the only item on this list that can hurt someone who is not in the room.
+
+Note the structural bind, and state it plainly rather than solve it here: \textit{nothing is ever deleted} is a law of this system, and it is in tension with every consent regime that includes a right to withdraw. Retraction is not deletion. The rows stay. That is the correct behavior for an evidence ledger and it is not obviously the correct behavior for a photograph of a person who has asked you to remove it. Do not read the big bang as the answer to this. It is the wrong shape twice over: it removes everything or nothing, so it cannot honor one person's withdrawal, and it works by declaring a new universe, which is not available as a response to a request from someone in this one. If anything the reset sharpens the bind, because it demonstrates that this design's only mechanism for forgetting operates at the granularity of a cosmos. See Chapter 12, and see the four decisions the whitepaper says need a meeting.
+\end{Open}
+
+\section{The fifth defect}
+
+The defects section of this book listed five. Four were fixed by repair on 2026-07-17 and are recorded below. The fifth was the byte-identical duplicate of \rulerow{shared-mailbox-v1} at \texttt{o.i} 113403 and 113404, and about it this book said flatly that it could not be fixed, because nothing is ever deleted, and that this was the design working as specified rather than an embarrassment.
+
+It is gone now. Not repaired. Erased, along with everything else, by ending the universe it lived in. Both rows are in the dump and in no live database anywhere. So are the rules they were: \rulerow{shared-mailbox-v1} and \rulerow{shared-mailbox-v2} were \labLineageName{} tissue, not genome, and the stem cell never carried them, so the wipe took them and the reborn instance has never heard of a shared mailbox.
+
+The honest reading is narrow and it should not be widened. The big bang is the only operation that removes history, and it works precisely because it is not a deletion within the system: it is a different system, with a new origin, and the old one is a frozen artifact on disk that anyone can restore and query. \textit{Nothing is ever deleted} remains true of every universe. It says nothing about how many universes there are, and it never did; the sentence was always scoped to one, and nobody noticed because there had only ever been one.
+
+That is not a vindication of anything. Read what it cost: the fix for one duplicated row was to lose 178,561 objects, 256,619 relations and 601,094 messages, and that was only acceptable because \labPI{} judged that none of it was worth keeping and because the sources it was derived from still exist. The second reason is item 5 and it is currently a belief. So the defect that the book said was unfixable was fixed, by a method that is not available to fix anything else, at a price nobody would pay for it and nobody did pay for it: the duplicate did not motivate the wipe, it was standing next to the wipe when it happened. The general defect it was an instance of, that \texttt{o} rows cannot be retracted at all, is item 6 and is untouched. Whether the method may be used a second time is item 9, and the fact that it is a new open problem rather than a technique is the entire lesson.
+
+\section{What came off this list}
+
+Five items were settled on 2026-07-17. They are recorded here rather than deleted, because a list of open problems that quietly loses entries is not evidence of anything. Four were settled by repair. The fifth was settled by the universe it was about ceasing to exist, which is a different thing and is marked as such.
+
+\textbf{C1. \texttt{consensus} read raw \texttt{r}.} The view now reads \texttt{r\_active}, in \texttt{stem-cell.sql} and therefore in the live instance, where \texttt{r\_active} is defined before \texttt{consensus} so that the ordering artifact that caused the defect cannot recur. Verified on a fresh instance rather than asserted: two \texttt{measured} witnesses at $v=1.0$ and $v=0.0$ give truth $0.500$ over two witnesses, and after retracting the second, truth $1.000$ over one. Retraction reaches truth.
+
+The evidence for this one has moved and the book should say where. In the archived universe the fix changed the answer visibly: \texttt{r} held 256,619 rows against \texttt{r\_active}'s 149,092, and the view stopped counting 49,533 retracted witnesses as evidence, leaving \texttt{consensus} with 144,514 groups of which 2,262 had more than one witness. None of those numbers can be reproduced on the live instance, which has zero rows and zero groups; they are now facts about the dump. The correction row itself is also gone. It was an object in \texttt{o}, which was the point of it, and the live \texttt{o} holds no corrections at all. It named the cause as \textit{``ordering artifact, not reasoning''} and added that \textit{``the stated rule (all queries go through r\_active, never raw r) was correct and the implementation silently predated it''}, and the caution this book attached to its arithmetic stands in the archive with it: the row said 107,527 rows, \textit{``42 percent of the evidence the view was reading''}, had been withdrawn, but 107,527 is the gap between \texttt{r} and \texttt{r\_active} and 57,994 of those were the outcome rows themselves, which were never witnesses. The retracted witnesses numbered 49,533. The row overstated by the width of its own ledger.
+
+\begin{Check}
+-- what remains verifiable on the live instance
+SELECT pg_get_viewdef('consensus'::regclass, true);   -- ... FROM r_active
+SELECT count(*) FROM o WHERE j->>'type'='correction'; -- 0
+-- the correction row, and the 42-percent arithmetic, are in
+--   backups/ydb/ydb-pre-bigbang-2026-07-17.dump
+\end{Check}
+
+There is a second-order lesson here that is more useful than the fix. The one artifact this project produced that demonstrated its own thesis on itself, an accountable correction recorded as a row rather than a silent edit to a file, did not survive the operation that came four hours later. It is preserved only in a \texttt{pg\_dump}, which is to say in exactly the kind of external, opaque, all-or-nothing artifact the design was built to avoid depending on. What C1 did not do, and what nothing since has done: the consensus law is still \texttt{status: seed-prior} in the live instance, linear versus quadratic is still unfit, and the corpus went from one witness to zero. Fixing a view is not fitting a law.
+
+\textbf{C2. \texttt{blob()} could be made to lie.} The function built its row as \texttt{jsonb\_build\_object(...) || meta}, and jsonb's \texttt{||} lets the right operand win, so \texttt{blob(hash, '\{"id":"NOT-THE-HASH"\}')} minted a ref whose recorded id was not a hash of anything. The operands are reversed: \texttt{meta} is the base and the computed fields overwrite it. The hash is also validated against \verb|^[0-9a-fA-F]{64}$|. Verified: the hostile call now records the true hash and keeps the legitimate \texttt{bytes:100} beside it, and \texttt{blob('9f2bc1')} raises \textit{blob(): sha256 must be 64 hex characters}. A caller can still pass junk. They can no longer overwrite the identity with it. This one is true of the live instance and not only of a file, because \texttt{differentiate-instrument.sql} was applied at boot.
+
+\textbf{C3. \texttt{o.i} and \texttt{r.i} were per-machine counters.} Both columns are now UUID, defaulting to a \texttt{uuidv7()} implemented in \texttt{stem-cell.sql} because Postgres 17 has none, and content is named by \texttt{uuid\_from\_sha256()}: UUID version 8, which RFC 9562 reserves for custom layouts, with the leading bits of the digest as payload. Six bits are overwritten by version and variant, so the id is a 122-bit truncation of the sha256 and not the sha256. It is an index. The full hash stays in \verb|j->>'id'| and that is the thing you verify against. Verified with two containers that never communicated: each minted a distinct id for its own sample, where the old schema would have given both the id 1; and the same file hashed on each independently produced the identical id \texttt{35e3bc00-5f43-89f8-ac09-19177ed2275c} from sha256 \texttt{35e3bc00\allowbreak5f4399f8\allowbreak ac091917\allowbreak 7ed2275c\allowbreak 54b24cff\allowbreak 170b8331\allowbreak 41f815cd\allowbreak c0823c37}. No collision and no duplication, with zero coordination, which is what whitepaper section 7 asked for.
+
+Earlier drafts of this chapter said, correctly at the time, that this was true of the stem cell only and not of the instance holding the data. That qualification is retired, for a reason that is not a fix: the instance holding the data was replaced by an instance booted from the stem cell. What was scoped to a file is now scoped to the brain because the brain is now that file. The unenforceability of \texttt{r.i} survives entirely and is item 7; the intra-millisecond non-monotonicity of this particular \texttt{uuidv7} is item 8 and was found here.
+
+\begin{Check}
+SELECT data_type FROM information_schema.columns
+  WHERE table_name IN ('o','r') AND column_name = 'i';   -- uuid, uuid
+SELECT uuidv7();  -- 019f6e4d-...  (exists; on the pre-bigbang instance it did not)
+\end{Check}
+
+\textbf{C4. ``\texttt{DESIGN.md} asserts as a premise a property the implementation lacks.''} The premise is section 5: \textit{``Identity is a rigid designator (o.i, Asana gid, DOI, git sha), minted at spawn, immutable while state evolves.''} Under per-machine counters \texttt{o.i} denoted different objects in different copies, which is what made it false. Under \texttt{uuidv7} it is plausibly true, and under \texttt{uuid\_from\_sha256} it is true for the reason the premise wants, namely that the name is a function of the thing. The premise is discharged, on the strength of a two-container test rather than an argument, and it is now discharged for the live instance rather than for a file, for the same reason C3 is. Chapter 11 says the founding document asserts a property the implementation lacks. Chapter 11 was right about the copy it was measuring, and that copy is in the dump.
+
+\textbf{C5. Migrating the live instance to the identity scheme (dissolved, not solved).} This item asked for 178,561 objects and 256,619 append-only relations to be rewritten from BIGINT counters to UUID, every cast and stored reference migrated, and a decision on what it means for a rigid designator to be re-minted. It also carried a wrinkle this book thought was the interesting part: \texttt{DESIGN.md} says identity is \textit{``minted at spawn, immutable while state evolves''}, a migration re-mints every identifier in the store, and so the migration would have been the act of making the premise true by violating it. The item required deciding, first and in writing, whether the migrated instance was the same instance or a new one inheriting the old one's observations.
+
+Nothing was migrated. The instance was ended and a new one was booted from the stem cell, already correct. The wrinkle did not have to be resolved because nothing was re-minted: the new instance's ids were minted at its own spawn, immutably, exactly as the premise says. And the question the item said had to be answered in writing was answered by construction and in the strongest possible direction. It is a new instance. It inherits nothing, it has its own big bang, its identity is that birth event's \texttt{o.i}, and the old one's observations are in a file. Record it as dissolved rather than solved, because the distinction is the whole content: the migration problem was not too hard, it was made not to apply, and the cost of making it not apply was the data. See item 5 for the bill.
+
+\section{What this list is evidence of}
+
+Seventeen items, two of them new today and one of them new because the reset worked. Four cost less than a day. The list is still short on hard problems and long on unstarted ones, which is the signature of a system that has been designed faster than it has been measured. That is not a complaint. It is the same fact the book's spine is built on: between May 2025 and July 2026 the same weighted mean was called a theorem, posited as a Born rule, and finally marked \texttt{status: seed-prior} in a database row. The tiers caught that. What the tiers cannot do is run the regression, and the regression is now further away than it was yesterday, because the corpus it wanted is in a dump.
+
+The five that came off are evidence of a smaller and more testable claim, and the fifth is evidence of something else. Four were fixed, and nothing was fixed that the book had not already named, with a query attached, precisely enough that fixing it took less time than describing it had. The fifth was not fixed. It stopped applying, because the thing it applied to stopped existing, and this chapter records that as a separate category rather than a fifth win, because a project that lets \textit{dissolved} sit in the same column as \textit{solved} will eventually dissolve things on purpose.
+
+And the honest summary of the day is that the instance is now correct and empty. Every number in this book that was measured rather than argued was measured against a universe that ended at 04:20:12 UTC on 2026-07-17, four hours before this paragraph. The new one is four hours old, holds nine rules and its own birth certificate, has never had a person in it, and has therefore never been wrong about one. Item 5 is what turns that from a fresh start into a test.

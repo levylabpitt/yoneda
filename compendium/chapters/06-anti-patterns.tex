@@ -1,0 +1,146 @@
+\chapter{Anti-Patterns}
+
+This is an index, not an essay. Eight things not to do, each with the case that produced it, each in one paragraph. Every one of them is a mistake this project actually made, or came within one design meeting of making, and half of them are rule rows you can read in the database you just booted. Chapter 10 prints those rules in full, with their dates and their triggers. This chapter tells you what to do instead, in the imperative, so that a student who reads nothing else knows which eight cliffs are unfenced.
+
+Read it twice: once now, and once on the day you are tired and about to do the convenient thing.
+
+\section{Do not put the trace in the table}
+
+A fridge sweep is ten million points. Ten million rows in \texttt{r} is the failure mode \rulerow{oplog-vs-blob-v1} was written to forbid, and the last clause of the rule's definition says so flatly: \textit{``Raw traces NEVER enter o or r as rows.''} The blunter phrasing is not in the rule at all; it is in the header comment of \texttt{differentiate-instrument.sql}, which tells you what to do at the moment you notice yourself about to: \textit{``If you find yourself adding a table for measurement points, stop.''} The bytes are hashed, the hash is the name, and the name goes in a record. What makes this a real discipline and not a size heuristic is that the criterion is \emph{concurrency}, not bulk: a Leiden cooldown has exactly one author and every operation on the file is an append, so there is nothing to merge and nothing to be gained by shredding it into rows. Chapter 10 owns the criterion; here the instruction is flat. Hash the file, store the bytes, write one record. You have the whole vocabulary already: \texttt{blob(hash, meta)} mints the ref, \texttt{blob\_seen\_at(hash, path, host)} records where you found it, and the provenance goes in \texttt{r} as witnesses. A 4\,GB TDMS file is one row in \texttt{o} and three rows in \texttt{r}. The temptation to do otherwise is old: the May 2025 drafts carried a \texttt{state JSONB} column with nothing in them that would have stopped that 4\,GB file from landing in it.
+
+\begin{Correspondence}{The substrate gives you nowhere to put a measurement point}{Count the \texttt{CREATE TABLE} statements in your own copy of the instrument lineage, then count the rows the worked example writes.}
+The lineage adds functions and one view over the two tables the stem cell already had, and no storage at all. There is nowhere to put a measurement point because no such place was ever built.
+\begin{Check}
+-- in your own copy of the instrument lineage
+grep -c 'CREATE TABLE' differentiate-instrument.sql   -- 0
+
+-- then run the worked example at the bottom of that file:
+SELECT count(*) FROM r;   -- a handful of rows, for a sweep of ten million points
+\end{Check}
+The absence is the enforcement, and it is a weak enforcement: nothing in Postgres stops you from typing \texttt{CREATE TABLE sweep\_points}. If you find yourself doing it, you are not extending the lineage, you are leaving it.
+\end{Correspondence}
+
+\section{Do not make the path the name}
+
+\texttt{Y:\textbackslash data\textbackslash cooldown\_final\_v2.tdms} is not a name. It is a place, and places change. Files move between drives, get reorganized by whoever tidied up in August, and, worst, the DAQ re-saves the same filename with different bytes at three in the morning while you sleep. A reference that resolves to a path is a reference that can quietly come to mean something else. The note on \rulerow{oplog-vs-blob-v1} states the fix in seven words: \textit{``Hash is identity; path is a hint.''} A path is a mutable thing, so it enters the same way every other mutable external thing enters, as a dated observation recording where the bytes were last seen. That is what \texttt{blob\_seen\_at} is for, and calling it twice is not an error: the rows accumulate, and the history of where a file has lived is itself data. That is not bookkeeping fussiness. It is what buys you the four things the rule lists: reorganizing files never breaks the graph, re-acquiring the same scan is detected as identical rather than duplicated, silent corruption becomes detectable, and \textit{is this the same run?} becomes a question with an answer.
+
+Until 2026-07-17 the code did not enforce any of that. \texttt{blob()} built its row as \texttt{jsonb\_build\_object(...) || meta}, and jsonb's \texttt{||} lets the right operand win, so \texttt{blob(hash, '\{"id":"Y:/data/cooldown.tdms"\}')} minted a ref whose recorded id was a path. The anti-pattern this section names was reachable straight through the function written to prevent it. The operands are now the other way around: \texttt{meta} is the base and the computed \texttt{kind}, \texttt{scheme}, and \texttt{id} overwrite it, and the hash is checked against \texttt{\^{}[0-9a-fA-F]\{64\}\$} on the way in. A caller can still hang junk on a blob. They cannot make the junk be the name.
+
+\begin{Correspondence}{Re-ingest is idempotent under the hash and not under the path}{Call \texttt{blob()} twice with one hash and \texttt{blob\_seen\_at()} twice with different paths, then read the \texttt{blobs} view on your own instance.}
+The hash decides identity, so the second ingest of the same bytes mints nothing. The path decides nothing, so every sighting accumulates.
+\begin{Check}
+SELECT blob(repeat('9f',32), '{"bytes":4294967296}');   -- returns some i
+SELECT blob(repeat('9f',32), '{"bytes":4294967296}');   -- the SAME i: no second name
+SELECT blob_seen_at(repeat('9f',32), 'Y:\data\raw\cooldown.tdms', 'rig-leiden');
+SELECT blob_seen_at(repeat('9f',32), 'Y:\archive\2026\cooldown.tdms', 'rig-leiden');
+SELECT sha256, last_seen_path, n_sightings FROM blobs;
+-- one blob, n_sightings = 2, last_seen_path = the archive copy
+
+-- the path cannot be smuggled in as the name. Use a hash you have NOT minted
+-- yet: on one you already have, ON CONFLICT DO NOTHING short-circuits and the
+-- check passes without ever reaching the code it is meant to exercise.
+SELECT blob(repeat('ab',32), '{"id":"Y:/data/cooldown.tdms","scheme":"path"}');
+SELECT jsonb_pretty(j) FROM o WHERE i = uuid_from_sha256(repeat('ab',32));
+-- id is the hash and scheme is sha256: both forgeries overwritten.
+
+-- and a non-hash is not accepted at all:
+SELECT blob('9f2bc1');   -- ERROR: blob(): sha256 must be 64 hex characters
+\end{Check}
+One blob, two sightings, one current path. Move the file a third time and the graph does not notice. Run the two sightings as separate statements, not inside one transaction: \texttt{blobs} picks the latest by \texttt{t}, and a single transaction stamps both with the same \texttt{now()}, which leaves the tie to be broken arbitrarily. Note what the check does not establish. \texttt{blob()} now checks that its argument is \emph{shaped} like a sha256 and rejects anything that is not sixty-four hex characters. It does not check that those characters are the digest of any bytes you have: \texttt{repeat('9f',32)} passes this check, and it is the digest of nothing. Format validation is not verification, and the pass that walks the store and re-hashes is still not written.
+\end{Correspondence}
+
+\section{Do not fix a row}
+
+You found a wrong record. Do not repair it. Add an outcome row pointing at its \texttt{i} with \texttt{verdict: retracted}, which is what \texttt{retract(i, reason)} does, and let \texttt{r\_active} do the rest. This is not a preference and it is not an audit-trail nicety: the retracted rows are the training data, and a system that edits them in place is destroying the only corpus that could ever calibrate it. A student who can silently vanish a bad sweep is a student whose good sweeps you cannot calibrate either. Chapter 4 has the mechanism. The instruction here is one line, and the one line is the whole of it: \textbf{UPDATE is not in your vocabulary.}
+
+\begin{Correspondence}{Retraction is subtraction in the view and addition in the table}{Write one witness against a freshly booted instance, retract it, and count \texttt{r} against \texttt{r\_active}.}
+The retraction is a row that points at the witness. The witness itself is never touched, which is why the raw table and the filtered view disagree afterward.
+\begin{Check}
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"LAO-STO-0417B"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"SR830-4821"}');
+INSERT INTO r (o1, o2, d)
+  SELECT s.i, dv.i, '{"type":"measured-by"}'
+  FROM o s, o dv
+  WHERE s.j->>'id'='LAO-STO-0417B' AND dv.j->>'serial'='SR830-4821';
+SELECT retract((SELECT i FROM r ORDER BY t DESC LIMIT 1), 'lock-in reference miswired');
+SELECT (SELECT count(*) FROM r) AS raw,
+       (SELECT count(*) FROM r_active) AS active;
+-- raw = 2: the witness, plus the outcome row that retracts it. Nothing was deleted.
+-- active = 0: the witness is gone from every query you will ever write.
+\end{Check}
+This is the strongest thing in the system, in the sense that it is the hardest to violate by accident: it is in the schema, not in a rule row, so there is no argument to have about it at runtime. The weakness is on the other side. Nothing forces you to \emph{use} \texttt{r\_active}; \texttt{r} is right there. One thing the check needs that the sentence above does not say: \texttt{r\_active} is genome and is there the moment you boot, but \texttt{retract()} is sugar defined in \texttt{differentiate-instrument.sql}, so run the lineage file too or write the outcome row by hand.
+\end{Correspondence}
+
+There is exactly one operation in this system that removes history, and it is worth naming here rather than leaving it to be discovered. On 2026-07-17 the live instance was wiped and rebooted from the stem cell at Jeremy's instruction, and the 178{,}561 objects and 256{,}619 relations of the Names universe stopped being reachable from any query. That is not a counterexample to this section, and it is not a loophole in it either. Retraction is a move \emph{within} a universe, and within a universe nothing is ever deleted; a big bang ends one universe and starts another, with a new origin and a new identity, and the old one survives as a frozen 1.18\,GB artifact on disk (\texttt{backups/ydb/ydb-pre-bigbang-2026-07-17.dump}) that can be restored and queried but not written into. \textit{Nothing is ever deleted} is a statement about each universe. It says nothing about how many universes there are. State the cost plainly, because the arithmetic is what makes this honest: one of the defects cleared by the wipe was a single duplicated rule row, and the price of clearing it was 178{,}561 objects. That price was acceptable only because Jeremy judged none of it worth keeping and because the sources it was derived from still exist on disk. A big bang is not a repair technique. It is available once, cheaply, at birth, and it gets expensive fast.
+
+\section{Do not mint an internal ID for an external immutable}
+
+A DOI is already a permanent name. So is an arXiv id, an ORCID, an Asana gid, a git sha, and the sha256 of a TDMS file. Assigning your own catalog number to a thing that already has a rigid designator creates a second name for one thing and a mapping table to maintain forever, and the mapping table will drift. \rulerow{boundary-ref-v1}: external immutable identifiers enter as boundary refs carrying their own scheme and id, dereferenced lazily, and whatever comes back from dereferencing lands as observations. This is why \texttt{blob()} is written the way it is: the scheme is \texttt{sha256} and the id is the hash, and the function's whole job is to refuse to mint a second name for bytes that already have one. Then the part of the rule that is easy to skip and should not be skipped, quoted exactly: \textit{``immutability is referential integrity, not epistemic warrant.''} A DOI that resolves stably for forty years tells you that the string still points at the same paper. It tells you exactly nothing about whether the paper is right. A hash that matches tells you the bytes are the bytes you had. It tells you nothing about whether the lock-in was wired correctly when they were written. The two properties are unrelated and the vocabulary invites you to confuse them.
+
+\section{Do not force convergence}
+
+Google Docs, operational transforms, and CRDTs are rejected as the document model. Not because they are bad engineering, they are excellent engineering, but because they resolve disagreement silently at write time and the resolved-away version is gone. \rulerow{divergence-is-data-v1} calls this \textit{``DELETE wearing a nice hat.''} Two authors who disagree produce two branches, both retained, neither privileged, and merging is a deliberate act that leaves both parents standing. Note carefully what is \emph{not} being refused: co-presence, the live low-latency sight of someone else's cursor, is fine and desirable. It is convergence that is refused, and the rule's own text says these are separable properties: take the first, refuse the second. This is also the rule that \rulerow{oplog-vs-blob-v1} sits under, and the reason the sweep is a blob at all: the fork is decided by concurrency, so an artifact with one author and nothing to merge is exactly the artifact that has no branches to preserve. Chapter 15 owns the argument, including the part where the argument is circular. One line here.
+
+\section{Do not trust a min or a max}
+
+\rulerow{window-censoring-v1}: any minimum or maximum derived over a source is censored by that source's coverage window. The earliest scan of sample LAO-STO-0417B in your store is the earliest scan \emph{that was captured}, and the capture agent was turned on in October. The lowest resistance you have on that sample is the lowest resistance \emph{in the sweeps you ran}, and you set the field range. \texttt{first\_seen} is a claim about the corpus, never about the world, and near the edge of the window it is strongly left-censored. So every source profile must carry its coverage window, and any compiled statement of the form \textit{first}, \textit{earliest}, \textit{lowest}, or \textit{never} must be phrased corpus-relative with confidence that degrades toward the boundary. The rule came out of a different lineage entirely, from a compiled claim about a date that the corpus could not support; Chapter 19 has that case. It generalizes to instrument data without a word changed, and the lab will hit it in month one, because the first thing anyone asks a new store is \textit{what is the best device we have made} and that question is a min over a window.
+
+\section{Do not give a source its own database}
+
+The first large source this project ingested got its own Postgres container on its own port, because that is obviously the right thing to do for a big import. It was not. \rulerow{egress-test-v1} fixed it and states the general form as a corollary. One caveat before the quote: unlike the other rules named in this chapter, egress-test-v1 is not in the genome. It came out of the email lineage, so it is tissue, and a freshly booted stem cell does not have the row. As of 2026-07-17 no live instance has it at all: it existed only in the Names universe, and the big bang took it along with everything else that was tissue. The row is in the pre-big-bang dump and nowhere else, which makes it the clearest illustration in this chapter of what tissue means. Quote it from this page; do not expect to \texttt{SELECT} it. The lesson generalizes; the row does not travel.
+
+The corollary, quoted exactly: \textit{``no source gets its own special database; the pattern is raw store -> extractor -> the one brain -> compiled views.''} The Asylum AFM will want its own database. So will the Leiden's TDMS output, and so will whatever LabVIEW writes next semester, and each of them will have a good local reason. None of them is an exception. The rule's primary clause is broader and is the reason Jeremy will not be argued out of it, quoted exactly: every component must have a documented, full-fidelity exit executable in an afternoon, \textit{``Named for Jeremy: egres literally means escape; I don't want to escape and find myself in a bigger trap.''} A raw store per instrument is fine and expected, because a content-addressed folder of bytes is the most exitable thing there is. A second brain is not.
+
+\section{Do not hardcode the composition}
+
+The May 2025 draft printed this sentence: \textit{``These compositions are discovered automatically rather than programmed explicitly.''} One hundred and eighty lines later, it printed this:
+
+\begin{lstlisting}
+CASE
+  WHEN c.composite_meaning = 'supervised_by'
+       AND a.arrow_type = 'member_of'
+  THEN 'affiliated_with_lab_via_supervision'
+  ELSE c.composite_meaning || '_then_' || a.arrow_type
+END
+\end{lstlisting}
+
+The one composite offered as an automatic discovery is a literal string in a hand-written \texttt{CASE} arm keyed on the exact pair of relationship types it claims to have discovered. Put the two on the same page and the lesson is free: a composition that has to be named in advance is not being discovered, it is being declared, and declaring it is how you end up with a rename table that has to be extended every time someone invents a new kind of arrow. That draft was never run, so it cost nothing but the reading. The honest version is shorter. Composition is a join, and you write it at query time:
+
+\begin{lstlisting}
+-- setup: a sample, a cooldown, a blob, and two witnesses.
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"LAO-STO-0417B"}');
+INSERT INTO o (j) VALUES ('{"kind":"cooldown","fridge":"leiden","started":"2026-07-14"}');
+SELECT blob(repeat('9f',32), '{"bytes":4294967296,"points":10000000}');
+INSERT INTO r (o1, o2, d)
+  SELECT (SELECT i FROM o WHERE j->>'id'=repeat('9f',32)),
+         (SELECT i FROM o WHERE j->>'id'='LAO-STO-0417B'), '{"type":"measured"}';
+INSERT INTO r (o1, o2, d)
+  SELECT (SELECT i FROM o WHERE j->>'id'=repeat('9f',32)),
+         (SELECT i FROM o WHERE j->>'kind'='cooldown'), '{"type":"during"}';
+
+-- which samples were measured during a given cooldown?
+-- No stored fact says so. It is "measured" after "during", composed at read time.
+SELECT DISTINCT s.j->>'id'
+FROM r_active m
+JOIN r_active dur ON dur.o1 = m.o1 AND dur.d->>'type' = 'during'
+JOIN o s ON s.i = m.o2
+JOIN o cd ON cd.i = dur.o2
+WHERE m.d->>'type' = 'measured'
+  AND cd.j->>'started' = '2026-07-14';
+\end{lstlisting}
+
+There is no \texttt{measured\_during} table, no \texttt{CASE} arm naming the composite, and nothing to migrate when you add a third arrow next month. Derived structure is computed, never materialized.
+
+\begin{Correspondence}{The one view the lineage ships is computed, not stored}{Describe the \texttt{blobs} view on your own instance and read its definition.}
+It is a view, it reads \texttt{r\_active}, and it contains no \texttt{CASE} arm naming a composite. The last-seen path it reports is not stored anywhere; it is a lateral over the \texttt{seen-at} witnesses, recomputed on every read. There is no table holding where a file is.
+\begin{Check}
+\d+ blobs
+-- a view, not a table. Its definition reads r_active, joins two laterals over
+-- the seen-at witnesses, and names no composite anywhere.
+\end{Check}
+\texttt{consensus}, the other computed view the stem cell ships, reads \texttt{r\_active} as well, and on any instance booted after 2026-07-17 it does so by construction rather than by repair. Until that date it read raw \texttt{r} and averaged retracted witnesses in with the live ones, which on the Names instance meant 107{,}527 withdrawn rows out of 256{,}619 counted as evidence. The cause was an ordering artifact and nothing more interesting than that: in the original file \texttt{consensus} was created before \texttt{r\_active} existed, so it was written against the only table available. The stem cell now defines \texttt{r\_active} first and says so in a comment that begins \textit{ordering is load-bearing}, which is the honest kind of fix, because it makes the next person who reorders the file read why not. The correction row written in \texttt{o} at the time of the repair did not survive the big bang; the ordering in the file did, which is a fair summary of what the two layers are each good for. None of it settles the weighting law, which is still \texttt{status: seed-prior} and still unfit, and fixing a view is not fitting a law. Chapter 8 owns both halves.
+\end{Correspondence}
+
+\bigskip
+
+Six of the eight are rule rows, backed by five distinct rules. Four of the five are genome: \rulerow{boundary-ref-v1}, \rulerow{window-censoring-v1}, \rulerow{divergence-is-data-v1}, and \rulerow{oplog-vs-blob-v1}. Read them on your own instance with one query, \texttt{SELECT jsonb\_pretty(j) FROM o WHERE j->>'type'='rule'}, and note that it returns nine rows and not four: the genome carries nine rules, of which these four are the ones this chapter argues from. Do not take the count on my word. Count it. The fifth rule, \rulerow{egress-test-v1}, is email-lineage tissue and will not be in your results at all; Chapter 10 prints it anyway, because the lesson outlives the row. The other two anti-patterns are backed by no rule at all. \textit{Do not fix a row} is older than the rule layer: it is in the schema, as the \texttt{r\_active} view, which is why it is the one thing here that cannot be argued with at runtime. And \textit{do not hardcode the composition} is a defect in a paper nobody ever ran, caught by reading the paper against itself fourteen months later. It is in this chapter because that is the only place it exists, and being written down is the only reason it will not happen again.

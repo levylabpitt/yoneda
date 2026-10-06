@@ -1,0 +1,39 @@
+name = "yoneda-site"
+main = "src/index.js"
+compatibility_date = "2026-07-17"
+workers_dev = false
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[routes]]
+pattern = "yoneda.science/*"
+zone_name = "yoneda.science"
+
+# Workers AI: powers the 202-slot fill in /api/book. The binding carries account
+# auth, so no API key lives here (keeps the whole pipeline inside Cloudflare).
+[ai]
+binding = "AI"
+
+# The compile service: a Cloudflare Container whose image (../compile-container)
+# has TeX Live + python3 + the generator + book-template. Its server.py listens on
+# port 8080 (= BookCompiler.defaultPort in src/index.js). A full-book latexmk run
+# needs real disk and memory, so use a large instance type (standard-4: 4 vCPU,
+# 12 GiB, 20 GB disk); lite/basic (2-4 GB disk) will not hold a full TeX Live.
+[[containers]]
+class_name    = "BookCompiler"
+image         = "../compile-container/Dockerfile"
+max_instances = 5
+instance_type = "standard-4"
+
+# A container binding IS a Durable Object binding; the Worker sees it as
+# env.BOOK_COMPILER.
+[[durable_objects.bindings]]
+name       = "BOOK_COMPILER"
+class_name = "BookCompiler"
+
+# Register the container-backing DO class as a SQLite class (required to init it).
+[[migrations]]
+tag                = "v1"
+new_sqlite_classes = ["BookCompiler"]

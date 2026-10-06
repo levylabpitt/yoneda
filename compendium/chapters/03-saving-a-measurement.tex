@@ -1,0 +1,199 @@
+\chapter{Saving a Measurement}
+
+It is 3am. The Leiden has been cold for nine days, the sweep on LAO-STO-0417B finally ran clean, and LabVIEW has just closed a 4~GB TDMS file on the rig PC. You are tired. The question this chapter answers is the only question you should have to think about at 3am: what do you do with that file so that it is not lost, not silently overwritten next Tuesday, and still findable in 2031 when a referee asks whether Figure 3 came from that cooldown or the one before it.
+
+The answer is three steps and none of them require you to decide what the file \emph{is}.
+
+\section{The whole capture path}
+
+Hash it. Copy the bytes into the store. Write one record.
+
+The hash is a SHA-256 fingerprint: run a standard function over the bytes and get back a short string. The bytes go to a content-addressed store on the network drive, filed under that string. The database gets a single object, a boundary reference, saying: there exists a blob with this fingerprint, and here is what is true \emph{of the bytes}.
+
+Boot your own instance if you have not (\texttt{docker compose up -d} in \texttt{stem-cell/}), open psql, and run this. Substitute the hash of a real file if you have one; any 64 hex characters will execute.
+
+\begin{lstlisting}
+SELECT blob('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8',
+            '{"media_type":"application/x-tdms",
+              "bytes":4294967296, "points":10000000}');
+
+SELECT blob_seen_at('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8',
+                    'Y:\blobs\3c\3c9f8b2e...f6b8', 'rig-leiden');
+
+SELECT sha256, bytes, last_seen_path, n_sightings FROM blobs;
+\end{lstlisting}
+
+One row in \texttt{o}, one in \texttt{r}, and the \texttt{blobs} view now shows your blob and where it was last seen. Four gigabytes of sweep, one row. That is deliberate and it is a rule, \rulerow{oplog-vs-blob-v1}, quoted in full in Chapter~10: ``Raw traces NEVER enter \texttt{o} or \texttt{r} as rows.'' Ten million sweep points as ten million relations is the failure mode that rule was written to forbid. The database holds the fingerprint and the provenance around it. It never holds the trace.
+
+Then, separately and whenever anyone gets around to it, the connections. That this blob is of that sample. That it came from that lock-in. That it happened during that cooldown. That you took it.
+
+Those things have to exist first, so make them. Nothing here is a new table; a sample is just a row in \texttt{o} that says it is a sample.
+
+\begin{lstlisting}
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"LAO-STO-0417B","growth":"2026-04-17"}');
+INSERT INTO o (j) VALUES ('{"kind":"device","serial":"SR830-4821","model":"SR830"}');
+INSERT INTO o (j) VALUES ('{"kind":"cooldown","fridge":"leiden","started":"2026-07-14"}');
+\end{lstlisting}
+
+Now the links. \texttt{blob()} is idempotent, so calling it again with the same hash hands you back the same object rather than a second one; that is what lets each of these stand alone.
+
+\begin{lstlisting}
+INSERT INTO r (o1, o2, d)
+SELECT blob('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8'),
+       i, '{"type":"measured"}'::jsonb
+  FROM o WHERE j->>'kind'='sample' AND j->>'id'='LAO-STO-0417B';
+
+INSERT INTO r (o1, o2, d)
+SELECT blob('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8'),
+       i, '{"type":"produced-by"}'::jsonb
+  FROM o WHERE j->>'kind'='device' AND j->>'serial'='SR830-4821';
+
+INSERT INTO r (o1, o2, d)
+SELECT blob('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8'),
+       i, '{"type":"during"}'::jsonb
+  FROM o WHERE j->>'kind'='cooldown' AND j->>'fridge'='leiden';
+\end{lstlisting}
+
+Ask what the blob is of, through \texttt{r\_active} and never through raw \texttt{r}:
+
+\begin{lstlisting}
+SELECT a.d->>'type' AS link, o2.j
+  FROM r_active a JOIN o o2 ON o2.i = a.o2
+ WHERE a.o1 = blob('3c9f8b2e1d5a47f60b8c2e94a1f7d3068e5b41c2a97f6d38b0e4c15a72d9f6b8');
+\end{lstlisting}
+
+Three rows: a sample, a lock-in, a cooldown. That is the whole provenance of a 4~GB sweep, and none of it was decided at 3am.
+
+\section{No sorting, no schema, no meeting}
+
+This is the pitch, and it is a good one, so here it is in the whitepaper's own words:
+
+\begin{quote}
+Sorting and connecting happen afterward, as relations. That this scan is of that device, that this acquisition came from that cooldown, that this image is Figure 3 in that paper, that a given person took it: each is a link added whenever someone, or a nightly AI pass, learns it. Because links are only added and can be superseded, a wrong connection is cheap to fix and becomes a piece of training data rather than a mess. This is the answer to the fact that people are tired. The tiring part, deciding the whole categorization up front, is removed.
+\end{quote}
+
+Nobody at 3am has to know which project the sweep belongs to, whether the sample is the good one, or what the folder should be called. The save is unconditional. Meaning accrues later, and a wrong link is not a mess because nothing was destroyed to make it (Chapter~4).
+
+The last clause of that quotation is the one to watch. ``Becomes a piece of training data'' presumes a calibration that has not been fit, on a corpus that does not exist yet. Chapter~17 collects the whole ledger of unfit things. For now, take the deferral argument as the practical claim it is: you can save without deciding, and the decision is cheap later. That much is mechanical.
+
+\section{Why a fingerprint and not a catalog number}
+
+A catalog number is minted by somebody. A fingerprint is computed from the file. That difference buys four things at once.
+
+\begin{Theorem}{Content addressing gives self-certifying, deduplicating, machine-independent names}{Collision resistance of SHA-256, NIST FIPS 180-4; a standing conjecture, not a proved theorem.}
+Anyone can check that a file is the one referred to, by re-running the hash, with no registry to trust. Identical bytes get one name, so re-acquiring the same file is detected as identical rather than duplicated. The name is the same on every computer in the lab and does not depend on who minted it. And a name can never come to mean different bytes, which is what makes the store safe against silent overwriting.
+
+The tier says Proved and the citation says conjecture, and that is not a slip. Collision resistance for SHA-256 has no proof, it has an absence of counterexamples: no collision is known, the function has been attacked for twenty years, and the confidence is empirical. This is the only theorem-tier claim in Part I and it rests on an unproven assumption. It is printed that way rather than letting ``absolute and permanent'' stand unqualified, because ``absolute and permanent'' is what the whitepaper says and it is not what anybody can deliver.
+\end{Theorem}
+
+That last property is the one you will care about. A catalog number can be reassigned. A folder path can be reused. A fingerprint cannot: if the bytes change, the name changes, and the old reference still points at exactly what it always pointed at.
+
+The whitepaper says the name is ``the same on every computer and in every decade.'' The second half of that is a claim about SHA-256's cryptographic lifetime, and the document never mentions what happens when the function is retired. Migrating a content-addressed store to a new hash is a known and unpleasant operation, and nobody here has planned one.
+
+\section{Hash is identity; path is a mutable}
+
+This is the sharpest thing in the capture design and it takes one paragraph to state.
+
+\begin{Correspondence}{Hash is identity; path enters only as a dated sighting}{The rule row says so in the database; read its note on your own instance.}
+The note of \rulerow{oplog-vs-blob-v1} says, verbatim: ``Hash is identity; path is a hint. A path is not immutable (files move, get overwritten, get re-saved by the DAQ with the same name and different bytes), so a path CANNOT be a boundary ref; it enters as a dated snapshot per snapshot-on-observation-v1.''
+\begin{Check}
+SELECT j->>'note' FROM o WHERE j->>'name'='oplog-vs-blob-v1';  -- the text quoted above
+\end{Check}
+The bytes are something we control and they do not change, so they get a name computed from themselves. The path is something the filesystem controls and it changes constantly, so it gets recorded the way we record any fact about the outside world: as an observation, with a date and a machine, that was true when we looked. \texttt{blob\_seen\_at()} is called every time anyone sees the file, and the rows accumulate. The history of where a blob has lived is itself data. Moving a file between drives breaks nothing, because no reference ever pointed at the drive.
+\end{Correspondence}
+
+The DAQ will re-save over \texttt{sweep\_final.tdms} with different bytes. It will do this at 4am and it will not tell you. If the path were the name, that reference would silently now mean something else, and a figure in a paper would point at a file that no longer exists in any recoverable sense. If the path is a sighting, what you get instead is two blobs, two names, and a sighting history that says the same path held different bytes on two dates. That is not a corruption. It is a record.
+
+\section{No real file has gone through this}
+
+Now the honest part, and it belongs here rather than in a footnote at the back.
+
+\begin{Open}{The capture path has never been run on an instrument}{Point an agent at the Leiden's output directory and watch the blob count climb without a human typing a hash.}
+You just ran it by hand, which is the easy half. The other half is an agent that hashes a TDMS file the DAQ actually wrote, and the test of that agent is a count that moves on its own.
+\begin{Check}
+SELECT count(*) FROM o
+ WHERE j->>'kind'='ref' AND j->>'scheme'='sha256';   -- run before and after an acquisition
+\end{Check}
+The functions are real: \texttt{blob()}, \texttt{blob\_seen\_at()}, \texttt{retract()}, and the \texttt{blobs} view are in your instance the moment it boots, and the SQL above executes. What does not exist is the capture agent, and no file produced by an instrument has ever been through this path. Every hash in this chapter was typed by a human. The claims about TDMS below are therefore predictions about a format, not observations of a store. Everything past this point is what will happen, not what has happened.
+\end{Open}
+
+This chapter used to list three defects in \texttt{differentiate-instrument.sql} that a first reader should know about. Two of them were repaired on 17 July 2026 and one was not, so what follows is two paragraphs of history and one live warning. The history is kept because the repairs are checkable, and a book that quietly deletes the bugs it reported is not a record of anything.
+
+The first was that \texttt{blob()} could be made to lie by its own optional argument. It built the ref as \texttt{jsonb\_build\_object(...) || meta}, and JSONB concatenation in Postgres is right-biased, so a caller who passed \texttt{meta} containing an \texttt{id} key overwrote the identity with it. The one function whose job is to make hash-identity inviolable would accept a metadata dictionary with an \texttt{id} field in it, which is most metadata dictionaries, and mint a ref whose recorded id was not the hash of anything. The fix was to swap the operands: \texttt{meta} is now the base and the computed fields overwrite it. A caller can still pass junk and the junk is still stored; they cannot overwrite the identity with it.
+
+The second was that \texttt{blob()} was not atomic: a \texttt{SELECT} then an \texttt{INSERT}, with no unique index on the hash, so two concurrent capture agents ingesting the same bytes produced two refs with the same hash and different \texttt{o.i}. That was exactly the duplication the scheme exists to prevent, and concurrent multi-machine ingest is the stated reason the lab lineage exists at all. It was fixed by the same change that fixed identity everywhere else, and fixed almost incidentally: once \texttt{o.i} is \texttt{uuid\_from\_sha256(hash)}, the primary key on \texttt{o.i} \emph{is} the unique index on the hash, and \texttt{ON CONFLICT (i) DO NOTHING} makes the insert idempotent for free. Two agents race, one wins, both get the same id back. Worth noticing that nobody set out to fix this one; it fell out of computing the name from the content, which is the argument for computing the name from the content.
+
+\begin{Correspondence}{Both blob() defects are repaired, and the repairs hold}{Call \texttt{blob()} with a forged \texttt{id} and then twice with one hash, on your own instance.}
+The forged \texttt{id} is discarded and the real digest is recorded; the rest of \texttt{meta} survives, which is the intended behaviour and not an accident of the fix. The doubled call returns one id and leaves one row.
+\begin{Check}
+SELECT blob('cc00...cc00', '{"id":"NOT-THE-HASH","bytes":5}');
+SELECT j FROM o WHERE i = uuid_from_sha256('cc00...cc00');
+--   {"id": "cc00...cc00", "kind": "ref", "bytes": 5, "scheme": "sha256"}
+--   the forgery is gone, "bytes" is kept
+
+SELECT blob('dd00...dd00');   -- dd00dd00-dd00-8d00-9d00-dd00dd00dd00
+SELECT blob('dd00...dd00');   -- the same id, no second row
+SELECT count(*) FROM o WHERE j->>'id' = 'dd00...dd00';   -- 1
+\end{Check}
+\end{Correspondence}
+
+The third defect was not fixed and is still waiting for you. \texttt{blob\_seen\_at()} records \texttt{host = NULL} without complaint if \texttt{yoneda.host} was never set on the connection, because \texttt{current\_setting('yoneda.host', true)} returns NULL rather than erroring. A sighting with no machine on it is close to useless, and nothing tells you it happened.
+
+\begin{Correspondence}{A sighting will silently record no host}{Call \texttt{blob\_seen\_at()} without setting \texttt{yoneda.host} and read the row back.}
+This is the smallest of the three and the only one still live, which is roughly how these things go: the two that were arguments about identity got fixed, and the one that is merely a missing value did not.
+\begin{Check}
+SELECT blob_seen_at('ee00...ee00', '/tmp/x.tdms');
+SELECT d FROM r WHERE d->>'type' = 'seen-at';
+--   {"host": null, "path": "/tmp/x.tdms", "type": "seen-at"}
+--   no error, no warning, and the sighting is now unattributable
+\end{Check}
+\end{Correspondence}
+
+\section{Three things you will hit in month one}
+
+The whitepaper does not discuss any of these. You will meet all three.
+
+\subsection{The file is still being written}
+
+A TDMS file that is closed is a fixed sequence of bytes and has a fingerprint. A file that is still being written during a live acquisition does not. It has a growing family of prefix names: the file as of 03:00, the file as of 03:01, each a different string.
+
+\begin{Analogy}{Frozen in the past and growing at the present edge are the same object, a log}{Breaks at identity, which is the one thing the analogy was invoked to supply.}
+A log's identity is the log. A prefix hash's identity is the \emph{prefix}, so each checkpoint is a different object with a different name. The file therefore has a sequence of names and no permanent one until it closes, and a permanent, absolute, forever-stable reference for each file is precisely the requirement the whole fingerprint scheme was introduced to satisfy. For a live acquisition there is no such reference, and calling the growing thing a log does not manufacture one. It is not a contradiction in the logician's sense. It is an unmet requirement wearing a slogan.
+\end{Analogy}
+
+\begin{Open}{How to fingerprint a growing acquisition}{Implement both candidate schemes and time them against a real multi-hour Leiden sweep.}
+Nobody has decided this. The whitepaper names the problem as a risk and offers a sentence where a scheme should be. There are two candidates and they differ by an order of growth, so the choice is not a matter of taste:
+
+\begin{Check}
+-- prefix-hash: re-run SHA-256 from byte zero at each checkpoint
+--   O(n^2) total work over the run. On a 4 GB acquisition this is a real cost,
+--   not a rounding error, and it grows with the length of the sweep.
+
+-- chunk-Merkle: hash fixed-size chunks, build a tree over them
+--   O(n) total. Gives incremental verification and deduplicates shared
+--   prefixes for free. More code, and a second name scheme to explain.
+
+-- and either way, still undecided: what triggers a checkpoint?
+--   a timer, a byte boundary, or a TDMS segment boundary
+\end{Check}
+\end{Open}
+
+\subsection{``The bytes already written never change'' is false for TDMS}
+
+The whole checkpoint idea rests on a premise the whitepaper states flatly: only the far end grows, and what is written stays written. That premise is an assertion about instrument file formats, and it fails for the format the lab actually uses.
+
+\begin{Open}{Does TDMS satisfy the append-only-bytes premise?}{Hash the prefixes of a live LabVIEW write and compare them before close, after close, and after defragmentation.}
+LabVIEW writers maintain a \texttt{.tdms\_index} sidecar, and TDMS defragmentation rewrites the file wholesale, which changes bytes that were previously written. More generally, any format that patches a length, a sample count, or a checksum at close breaks the premise. The whitepaper offers not one counterexample. This book offers this one, and does not know how bad it is, because the measurement has not been made. The same measurement is owed for the Asylum AFM's output, which nobody has looked at either. If TDMS turns out to rewrite early bytes, prefix hashing is not merely slow, it is wrong: a checkpoint reference will fail to verify against the closed file, and you will have a permanent name for something the disk no longer contains.
+\end{Open}
+
+\subsection{Tamper-evident only if somebody re-hashes}
+
+A content-addressed store is often described as tamper-evident ``by nature.'' It is not. It is tamper-evident \emph{when read}.
+
+\begin{Open}{When does silent corruption get detected?}{Run a scheduled scrub and measure the mean time to detection; settled by having the number.}
+The scrub that does not exist is four lines of specification: walk the store on a schedule, re-hash every blob, compare against its name, and write an outcome row against any blob whose bytes no longer match. Nothing in the design specifies it. Bit rot on a network drive, a bad cable during a copy, a silent RAID repair: all of these are detected the next time somebody reads that blob and checks. For a 2019 cooldown that nobody will open again until a referee asks, ``the next time somebody reads it'' means never, or means seven years from now, in front of the referee. The property the fingerprint gives you is that corruption \emph{can} be detected with certainty. It does not give you detection, and the difference is a cron job nobody has written.
+\end{Open}
+
+\section{What you actually do at 3am}
+
+Nothing, once the capture agent exists: it watches the instrument directory, hashes each new file, copies the bytes, and writes the record, and you go home. Until then, the honest instruction is to save the file, do not rename it to something clever, and do not delete the one that looks wrong. The one that looks wrong is Chapter~4's business, and it is worth more than you think.

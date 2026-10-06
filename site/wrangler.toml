@@ -1,0 +1,30 @@
+name = "yoneda-site"
+main = "src/index.js"
+compatibility_date = "2026-07-17"
+workers_dev = false
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# Without this, a request matching a static file is served straight from the
+# asset store and the Worker never runs, so the yoneda.science -> yoneda.app
+# redirect would apply to /api paths only and never to an actual page.
+run_worker_first = true
+
+[[routes]]
+pattern = "yoneda.science/*"
+zone_name = "yoneda.science"
+
+[[routes]]
+pattern = "yoneda.app/*"
+zone_name = "yoneda.app"
+
+# The plasmid store. Its own host rather than yoneda.app/store because a store is
+# a peer instance, not a feature of this site: another lab running theirs is then
+# the same shape. The zone moved off Porkbun to Cloudflare on 2026-07-26 and its
+# apex is a proxied AAAA at 100:: (a black hole) so this route can intercept.
+# Safe alongside the redirect above, which matches the hostname yoneda.science
+# exactly and so does not swallow this zone.
+[[routes]]
+pattern = "yoneda.store/*"
+zone_name = "yoneda.store"

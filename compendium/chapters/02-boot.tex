@@ -1,0 +1,440 @@
+\chapter{Boot Your Own Copy}
+
+This chapter is a runbook. It gets an empty Yoneda running on your machine, shows you what you got, and has you put a sample, a cooldown, and a sweep into it. It contains no architecture and no argument, because you cannot argue with a database you have not started. Everything here is checkable by typing it, which is why every claim in this chapter carries the same badge: \tier{corr}, meaning you can settle it yourself in the next ten minutes.
+
+One thing to be clear about before you start: you are not getting a copy of anyone's data. You are getting the substrate, empty. It initializes itself on first boot and then it sits there with ten rows in it, nine rules and the record of its own birth, waiting for you to put your own work in. Nothing in what you are about to boot knows what a sample or a fridge or a paper is. That is the point, and it is what makes the thing yours.
+
+A second thing, which will save you confusion later. Almost none of the identity values printed in this chapter will match yours, and that is not sloppiness in the printing. Identities are UUIDs now, minted fresh on every boot, so a chapter that told you to expect object 9 would be lying to every reader after the first. Where a value below is reproducible, it is called out and it is worth your attention, because there is exactly one kind of identity here that two machines agree on without talking, and finding out which kind is most of the education.
+
+There is exactly one section of rationale, at the end, and it is a warning. Read it before you take your copy seriously.
+
+\section{Pull the image first}
+
+\begin{verbatim}
+docker pull timescale/timescaledb-ha:pg17
+\end{verbatim}
+
+Docker Desktop is the entire list of prerequisites. On Windows it may need IT approval to install, which is the only slow step, so ask early.
+
+The pull is separate advice because Docker will happily reuse an image you already have under that tag, and \verb|pg17| is a moving tag. An image you pulled months ago ships an older TimescaleDB than the one this chapter was checked against, and the failures you get from that are version failures wearing the costume of syntax errors. Pull first. It costs thirty seconds.
+
+\begin{Correspondence}{What the image actually gives you}{Ask your own boot for its two version strings, and ask Docker when your image was built.}
+The versions below are what the image pulled for this chapter reports. Yours may differ, and that is the point: the tag moves, so the only way to know what you have is to ask it. The image timestamp is the fastest way to tell whether the tag handed you something built last week or something you cached in March.
+\begin{Check}
+select extversion from pg_extension where extname='timescaledb';
+                                            -- 2.28.2
+show server_version;                        -- 17.10 (Ubuntu 17.10-1.pgdg22.04+1)
+
+# from a shell, before and after a pull:
+docker image inspect timescale/timescaledb-ha:pg17 --format '{{.Created}}'
+                                            -- if this changes across the pull, yours was stale
+\end{Check}
+\end{Correspondence}
+
+\section{Boot it}
+
+\begin{verbatim}
+cd stem-cell
+docker compose up -d
+\end{verbatim}
+
+That is the whole boot. First boot takes about twenty seconds, most of which is PostgreSQL initializing its data directory.
+
+What happens in those twenty seconds is worth knowing, because it is the only moment it can happen. On an empty volume the image runs every file in \verb|/docker-entrypoint-initdb.d| in filename order, and the compose file mounts two files there: \verb|stem-cell.sql| as \verb|10-stem-cell.sql|, then \verb|differentiate-instrument.sql| as \verb|20-instrument.sql|. Genome first, then the instrument lineage on top of it. On a volume that already has data the image runs nothing at all, so \verb|up -d| is safe to repeat and editing those SQL files after your first boot does nothing whatsoever to a database that already exists. If you change them and want the change, you have to start over:
+
+\begin{verbatim}
+docker compose down -v && docker compose up -d
+\end{verbatim}
+
+The \verb|-v| destroys your volume and everything you put in it. It destroys only yours. It also gives you a new instance rather than the same instance restarted, which is a distinction the next section is about.
+
+The container is named \verb|yoneda| and the database is \verb|yoneda|, owned by \verb|postgres|. It listens on \verb|127.0.0.1:5434|, localhost only, never \verb|0.0.0.0|. Two collisions are worth knowing about in advance. The port is parameterized, so if something already holds 5434 you can boot with \verb|YDB_PORT=5444 docker compose up -d|. The container name is not parameterized: it is hardcoded to \verb|yoneda| in the compose file, so a second stem cell on the same machine collides there even under a different \verb|-p| project name, and Docker refuses the boot with a name conflict rather than anything informative about compose. The volume is named after the compose project, which defaults to the directory name, so booting from \verb|stem-cell/| gives you \verb|stem-cell_ydb_data|.
+
+Then get a prompt:
+
+\begin{verbatim}
+docker exec -it yoneda psql -U postgres -d yoneda
+\end{verbatim}
+
+\section{What you got}
+
+Two tables, three views, ten rows.
+
+\begin{verbatim}
+\dt
+\end{verbatim}
+
+\begin{verbatim}
+ public | o | table | postgres
+ public | r | table | postgres
+\end{verbatim}
+
+Two tables. That is not a simplification for teaching purposes and it is not the beginning of a schema that grows later. It is the design. \verb|o| holds objects, anything at all, in one JSONB column \verb|j|. \verb|r| holds relations: typed witnesses that say someone or something claimed this, with this confidence \verb|c|, on this branch \verb|b|, at this time \verb|t|.
+
+\begin{verbatim}
+\dv
+\end{verbatim}
+
+\begin{verbatim}
+ public | blobs     | view | postgres
+ public | consensus | view | postgres
+ public | r_active  | view | postgres
+\end{verbatim}
+
+Everything that is not a table is a view, which is the first real hint about how this thing thinks. Truth is a view. The live set of relations is a view. Neither is a table you can corrupt.
+
+Now count what is in it:
+
+\begin{verbatim}
+select count(*) from o;
+select count(*) from r;
+\end{verbatim}
+
+\begin{verbatim}
+ 10
+ 0
+\end{verbatim}
+
+Ten objects and no relations. Nothing has been claimed yet, because you have not claimed anything. The ten are nine rules and one event, and the split is worth seeing directly:
+
+\begin{verbatim}
+select count(*) filter (where j->>'type'='rule')      as rules,
+       count(*) filter (where j->>'kind'='big-bang')  as big_bangs,
+       count(*)                                       as total
+from o;
+\end{verbatim}
+
+\begin{verbatim}
+ 9 | 1 | 10
+\end{verbatim}
+
+The event is the subject of the next section. Look at the rules first:
+
+\begin{verbatim}
+select j->>'level' as level, j->>'name' as name
+from o where j->>'type'='rule' order by 1, 2;
+\end{verbatim}
+
+\begin{verbatim}
+ 0 | universal-epoch-v1
+ 2 | boundary-ref-v1
+ 2 | consensus
+ 2 | divergence-is-data-v1
+ 2 | oplog-vs-blob-v1
+ 2 | snapshot-on-observation-v1
+ 2 | source-as-instrument-v1
+ 2 | staleness-decay-v1
+ 2 | window-censoring-v1
+\end{verbatim}
+
+That query orders by level and name rather than by \verb|i|, and the reason is not cosmetic. Ordering by \verb|i| looks like it would give you insert order, because these ids are time-ordered UUIDs. It does not reliably. UUIDv7 carries a millisecond timestamp and fills the rest with randomness, and all nine of these rules are inserted in the same handful of milliseconds during boot, so within a millisecond their order is a coin flip. On the instance this chapter was checked against, \verb|boundary-ref-v1| and \verb|consensus| were minted in the same millisecond and came back from \verb|order by i| in the opposite order to the one the file inserts them in. Level and name are stable. Boot order is not, and nothing downstream is allowed to read it as truth.
+
+Nine rules, and the rules are rows. They are not comments, not documentation, not a wiki page that drifts away from the code. They are data in the database they govern, and they arrived with their reasoning attached:
+
+\begin{verbatim}
+select jsonb_pretty(j) from o where j->>'type'='rule';
+\end{verbatim}
+
+Run that one and actually read the output. When you hit a design question later, the answer and the argument for it are queryable rather than buried in someone's head. Ch.10 works through them one at a time. The ones that will bite you first are \verb|oplog-vs-blob-v1|, which decides what goes in the database at all, and \verb|window-censoring-v1|, which is about your sweep range and is discussed below.
+
+One more thing to look at before you write anything:
+
+\begin{verbatim}
+select hypertable_name from timescaledb_information.hypertables;
+\end{verbatim}
+
+\begin{verbatim}
+ r
+\end{verbatim}
+
+\verb|r| is a hypertable on \verb|t|. TimescaleDB has partitioned it by time behind your back and will compress chunks older than thirty days, segmented by branch. That last detail is not housekeeping: near-duplicate branches compress extremely well, and that is precisely what makes it affordable to keep every losing branch forever instead of deleting them. There is deliberately no retention policy.
+
+\begin{Correspondence}{Your instance starts empty and stays honest about it}{Count the two tables on a first boot, and count the rules by level rather than by row number.}
+Ten objects, nine of them rules and one of them the birth event, and zero relations. The level count is the more durable check of the two, because it does not depend on any identity value: one rule at level 0, which is the time origin, and eight at level 2, which are the epistemic rules. If your counts differ from these on a fresh boot, you are not running this genome.
+\begin{Check}
+select count(*) from o;              -- 10, the rules and the birth event
+select count(*) from r;              -- 0, you have not claimed anything yet
+
+select j->>'level', count(*) from o
+ where j->>'type'='rule' group by 1 order by 1;
+                                     -- 0 | 1   the declared epoch
+                                     -- 2 | 8   the epistemic rules
+\end{Check}
+\end{Correspondence}
+
+There is one check this chapter used to print here and no longer can, and the reason it broke is worth ten seconds. It used to say \verb|select count(*), max(i) from o| and expect the two to agree at 8, on the argument that \verb|i| is a counter that only goes up and nothing is ever deleted, so the row count and the highest identity ever minted must agree. That query is now an error: \verb|max(uuid)| does not exist, because \verb|i| is not a counter any more. The check did not merely stop compiling, it stopped meaning anything, since there is no highest identity to compare a count against. Losing it is a real loss and it is the price of the last section of this chapter.
+
+\section{The moment you booted}
+
+Your instance recorded the moment it was brought to life. That row is the one object of the ten that is not a rule, and it is not decoration:
+
+\begin{verbatim}
+select jsonb_pretty(j) from o where j->>'kind'='big-bang';
+\end{verbatim}
+
+\begin{verbatim}
+ {
+     "at": "2026-07-17T04:25:26.762Z",
+     "kind": "big-bang",
+     "note": "this instance was brought to life at this moment; nothing
+              precedes it. Its identity is this row's o.i.",
+     "epoch_rule": "universal-epoch-v1",
+     "t_universe": "435400001784262326.762417"
+ }
+\end{verbatim}
+
+Yours will carry your own moment. Three functions read it:
+
+\begin{verbatim}
+select instance_id();     -- who am I
+select age();             -- seconds since my big bang
+select t_universe();      -- seconds since THE big bang
+\end{verbatim}
+
+\verb|instance_id()| is the part to slow down on. It returns the \verb|o.i| of that birth row, and that is the whole of your instance's identity. There is no instance-id column, no name in a config file, and nothing you were assigned by anybody. The birth event already had an identity, because every object does, and a UUIDv7 minted on your machine will not collide with one minted on anyone else's without the two of you ever having coordinated. So the instance is not stored; it is computed from the one thing that was witnessed, namely that it was born. That is the same move the substrate makes for every other entity in this book, applied to the database itself. Two instances that later meet are two birth events in one frame, and neither had to be present at the other's.
+
+\verb|t_universe()| is the strange one, and it is strange on purpose. It counts seconds since the Big Bang, not since 1970, because 1970 is a convention about a human calendar and the origin the universe has is not. The constant sits in the level-0 rule row, and it is \emph{declared}: exactly \verb|435400000000000000| seconds from the Big Bang to the Unix epoch, exact by fiat, not by measurement.
+
+It has to be declared, and this is the point rather than a caveat. The age of the universe is 13.797 $\pm$ 0.023 Gyr (Planck 2018 results VI). That uncertainty is about $7.3 \times 10^{14}$ seconds, which is 23 million years, which is roughly ten times longer than the genus \emph{Homo} has existed. A century of lab records is about $3 \times 10^{9}$ seconds, so the uncertainty on the origin is some five orders of magnitude larger than the longest interval this database will ever record. So of the eighteen digits in that constant, roughly four are physically meaningful, and not one of them is meaningful as an absolute. You cannot measure your way to a usable origin here. You can only choose one.
+
+This is exactly what SI does with the speed of light. The metre stopped being a measurement of a bar in Paris and became a definition, and $c$ is exactly $299792458$ m/s not because anyone measured it that well but because we chose to stop measuring it and fix it. Same move. Once fixed, the thing you actually use is a difference, and differences are exact and physical: \verb|age()| is a subtraction of two \verb|t_universe| values, so it carries none of the constant's conventional slop. The absolute number is a convention shared by every instance that agrees to that row. The intervals are real.
+
+Two consequences follow, and both are in the rule row itself. The first is arithmetic: the type is NUMERIC and not double precision, because $4.354 \times 10^{17}$ needs eighteen significant digits and a double carries fifteen or sixteen, so seconds would be at the edge of the representable and milliseconds would be gone entirely. The second is discipline: if cosmology revises the age, do not edit that row. Editing it would silently translate every timestamp in every instance downstream of it, which is a coordinate change disguised as a bug fix. Supersede it with \verb|universal-epoch-v2| carrying an explicit offset and treat it as what it is. Origins do not get better. They get changed.
+
+\begin{Correspondence}{The absolute is a convention, the difference is not}{Subtract two \texttt{t\_universe} values a known interval apart and check that the slop cancels.}
+The constant contributes to both terms of a difference and therefore to neither. This is the concrete form of the claim that only differences are physical: the eighteen-digit number with four meaningful digits in it produces an exactly correct 86400.
+\begin{Check}
+select (j->>'seconds_to_unix_epoch')::numeric from o
+ where j->>'name'='universal-epoch-v1';
+                                     -- 435400000000000000, declared, exact by fiat
+
+select t_universe('2026-07-17 00:00:00+00'::timestamptz)
+     - t_universe('2026-07-16 00:00:00+00'::timestamptz);
+                                     -- 86400.000000, exactly one day
+\end{Check}
+\end{Correspondence}
+
+There is a practical payoff hiding in the word "birth". An instance does not need to be migrated from $t = -\infty$ and does not need a history it never had. It needs an origin, and now it declares one. What it costs is stated at the end of Ch.04: the only operation in this whole design that removes history is starting a new universe, and it is cheap exactly once.
+
+\section{Put something in it}
+
+An empty database teaches you nothing, so fill it. Everything from here runs against your instance exactly as printed, but the identities that come back will be yours and not the ones on this page. That is why the queries below look things up by their content instead of by their id. Get in the habit now: a workflow that pastes object numbers around was a workflow that only ever worked on one machine.
+
+Start with the durable things: a sample, a lock-in, a cooldown.
+
+\begin{verbatim}
+insert into o (j) values
+  ('{"kind":"sample","id":"LAO-STO-0417B","growth":"2026-04-17"}') returning i;
+insert into o (j) values
+  ('{"kind":"device","serial":"SR830-4821","model":"SR830"}') returning i;
+insert into o (j) values
+  ('{"kind":"cooldown","fridge":"leiden","started":"2026-07-14"}') returning i;
+\end{verbatim}
+
+\begin{verbatim}
+ 019f6e53-75fd-7b00-9395-52adbf233377
+ 019f6e53-7606-7691-95cf-098753d4b0b3
+ 019f6e53-7606-761a-83ae-bd7e17bb93ca
+\end{verbatim}
+
+Three UUIDs, and yours will be different. Note what you did not do: you did not create a \verb|samples| table, and there is no schema to migrate because there is no schema.
+
+Now the sweep, which is where the discipline is. You have four gigabytes of HDF5 with ten million points in it. That is not ten million rows. Raw traces never enter \verb|o| or \verb|r|, ever, and this is the rule most often violated by accident. The bytes go to the content-addressed store under \verb|./blobs/| and the database holds a reference to their hash:
+
+\begin{verbatim}
+select blob('7855f1f7d05d40ca22b0827f9579873b7396f122649a24956cf762def6a553dd',
+  '{"media_type":"application/x-hdf5","bytes":4294967296,"points":10000000}');
+\end{verbatim}
+
+\begin{verbatim}
+ 7855f1f7-d05d-80ca-a2b0-827f9579873b
+\end{verbatim}
+
+Four gigabytes of sweep, one row. That hash has to be a real one: \verb|blob()| checks it against 64 hex characters and raises if you hand it anything shorter, which it does precisely so that "the hash is the identity" stays a check instead of becoming a slogan. If you want to reproduce the exact value above without a 4 GB file to hand, that is the sha256 of the ASCII string \verb|yoneda-ch02-sample|, and \verb|select encode(sha256('yoneda-ch02-sample'::bytea),'hex')| will produce it for you.
+
+Look hard at what came back, because it is the one identity in this chapter that you can predict. Read the first characters of the UUID against the first characters of the hash. They are the same bytes. The id is not minted, it is computed: \verb|uuid_from_sha256| takes the leading 128 bits of the digest and overwrites six of them with the UUID version and variant fields, giving a v8 UUID, which is the version RFC 9562 reserves for exactly this kind of custom layout. That truncation is an index and not the evidence. The full hash stays in \verb|j->>'id'| and that is the thing you verify bytes against.
+
+Now do it again, with different metadata:
+
+\begin{verbatim}
+select blob('7855f1f7d05d40ca22b0827f9579873b7396f122649a24956cf762def6a553dd',
+  '{"media_type":"application/x-hdf5"}');
+\end{verbatim}
+
+\begin{verbatim}
+ 7855f1f7-d05d-80ca-a2b0-827f9579873b
+\end{verbatim}
+
+The same object. Identical bytes are recognized as identical rather than duplicated, because the hash is the identity. Re-ingest the same file a hundred times and you have one row a hundred times over. This is the payoff of hash-addressing and it is why the rule is what it is.
+
+Where the file lives is a different kind of claim entirely:
+
+\begin{verbatim}
+select blob_seen_at('7855f1f7d05d40ca22b0827f9579873b7396f122649a24956cf762def6a553dd',
+  'Y:\blobs\78\7855f1f7', 'rig-leiden');
+\end{verbatim}
+
+A path is not immutable. Files move, get reorganized, get overwritten, get re-saved by the DAQ under the same name with different bytes. So a path cannot be an identity; it enters as a dated observation of where the bytes were last seen, and the sightings accumulate. Reorganize your folders and nothing breaks, because nothing ever pointed at a folder. Call this every time you see the file.
+
+\begin{verbatim}
+select substring(sha256,1,12) as sha_head, bytes,
+       last_seen_path, last_seen_host, n_sightings
+from blobs;
+\end{verbatim}
+
+\begin{verbatim}
+ 7855f1f7d05d | 4294967296 | Y:\blobs\78\7855f1f7 | rig-leiden | 1
+\end{verbatim}
+
+Finally the provenance: which sample, which instrument, which cooldown. These are witnesses, and they go in \verb|r|. Since you do not have the ids in front of you, insert them by selecting what you mean:
+
+\begin{verbatim}
+insert into r (o1, o2, d)
+select b.i, s.i, '{"type":"measured"}'
+from o b, o s
+where b.j->>'scheme'='sha256' and s.j->>'id'='LAO-STO-0417B';
+
+insert into r (o1, o2, d)
+select b.i, dv.i, '{"type":"produced-by"}'
+from o b, o dv
+where b.j->>'scheme'='sha256' and dv.j->>'serial'='SR830-4821';
+
+insert into r (o1, o2, d)
+select b.i, cd.i, '{"type":"during"}'
+from o b, o cd
+where b.j->>'scheme'='sha256' and cd.j->>'kind'='cooldown';
+\end{verbatim}
+
+\begin{verbatim}
+select count(*) from r;              -- 4
+\end{verbatim}
+
+Four relations: the \verb|seen-at| sighting from \verb|blob_seen_at|, plus these three. You now have a sweep that knows what it measured, what measured it, and when, and not one measurement point is stored anywhere in the database.
+
+\section{The run was garbage}
+
+The lock-in reference was miswired and the phase is ninety degrees off. In a folder of \verb|.h5| files you would delete the file, or worse, quietly rename it \verb|_bad| and let it rot. Here you cannot delete it, and that is the feature:
+
+\begin{verbatim}
+select retract((select i from r where d->>'type'='measured'),
+               'lock-in reference miswired, phase 90 deg off');
+\end{verbatim}
+
+Now count both tables:
+
+\begin{verbatim}
+select count(*) from r;
+select count(*) from r_active;
+\end{verbatim}
+
+\begin{verbatim}
+ 5
+ 3
+\end{verbatim}
+
+Look carefully at what just happened. You retracted something, and \verb|r| got \emph{bigger}, from four rows to five. The retraction is itself a row: an outcome pointing at the \verb|measured| witness, carrying the reason. Meanwhile \verb|r_active|, the view that honours the latest verdict, dropped from four to three. The bad witness is gone from every query you will write, and it is still in the table, with the reason it was wrong recorded next to it.
+
+That is the whole replacement for \verb|DELETE|. There is no \verb|DELETE| and there is no \verb|UPDATE|. You query \verb|r_active|, never raw \verb|r|, and the machinery honours the newest outcome, so a retraction can itself be overridden later by a confirmation. The bad run stays forever, and it is not clutter: it is the calibration data. A student cannot silently vanish a sweep that disagreed with them, which is most of the argument for using this instead of a directory.
+
+While you are here, \verb|window-censoring-v1| applies to what you just stored. The lowest resistance in that sweep is a claim about the sweep, not about the sample. You never observed anything below your measurement floor, so do not let a query tell you that you did.
+
+\section{Entities are not stored}
+
+Six months later you find the same chip in the notebook as \verb|0417B|, and you do not know whether it is the same chip. There is no \verb|samples| table to fix, so what do you do?
+
+\begin{verbatim}
+insert into o (j) values ('{"kind":"sample","id":"0417B"}');
+
+insert into r (o1, o2, d, c)
+select a.i, b.i, '{"type":"same"}', 1.0
+from o a, o b
+where a.j->>'id'='LAO-STO-0417B' and b.j->>'id'='0417B';
+\end{verbatim}
+
+You add a witness saying the two labels are the same thing. You do not merge rows, you do not pick a winner, you do not rewrite the old label. Now ask what the sample is, from either name:
+
+\begin{verbatim}
+select count(*) from component('id','LAO-STO-0417B');
+select count(*) from component('id','0417B');
+\end{verbatim}
+
+\begin{verbatim}
+ 2
+ 2
+\end{verbatim}
+
+Both names return both objects. The sample is not a row anywhere. It is a connected component of \verb|same| witnesses, computed on demand, at a confidence threshold you choose (\verb|min_c|, default 0.9). Entities are never stored, they are computed, and this is the deepest thing in the genome.
+
+Which means you can be wrong and recover. Suppose they were two different chips and the notebook was mislabeled:
+
+\begin{verbatim}
+select retract((select i from r where d->>'type'='same'),
+               'different chips, mislabeled notebook');
+select count(*) from component('id','LAO-STO-0417B');
+\end{verbatim}
+
+\begin{verbatim}
+ 1
+\end{verbatim}
+
+The component splits back apart, because \verb|component| runs over \verb|r_active| and the \verb|same| witness is no longer active. Nothing was deleted; both objects and both claims are still there. Try doing that after an \verb|UPDATE| has merged two rows into one.
+
+\section{What extensions you actually get}
+
+\begin{verbatim}
+select extname, extversion from pg_extension;
+\end{verbatim}
+
+\begin{verbatim}
+ plpgsql             | 1.0
+ timescaledb         | 2.28.2
+ timescaledb_toolkit | 1.23.0
+\end{verbatim}
+
+Three. The checked-in \verb|stem-cell.sql| creates exactly one of them, \verb|timescaledb|. So \verb|plpgsql| and \verb|timescaledb_toolkit| arrived from the image rather than from anything in this repository, and if the image changes, that set changes without a line of the schema changing.
+
+Notice what is not there: no \verb|vector|, no \verb|pg_trgm|. If your lineage wants embeddings or fuzzy text matching, you add the extension yourself and you write it down, or the next person to boot from this directory will not have it and will get an error that tells them nothing about why.
+
+\begin{Correspondence}{The schema file is not the whole story}{Count the extensions the schema file asks for, then count the ones your fresh boot actually has.}
+The file asks for one. The database has three. The difference arrived from the image, and nothing in the repository records that it did.
+\begin{Check}
+# in stem-cell/, one line comes back:
+grep -i 'create extension' stem-cell.sql
+                                     -- CREATE EXTENSION IF NOT EXISTS timescaledb
+
+-- against your fresh boot, three rows come back:
+select extname from pg_extension;    -- plpgsql, timescaledb, timescaledb_toolkit
+\end{Check}
+\end{Correspondence}
+
+This is worth ten seconds of your attention because it tells you which artifact to trust. When the file and the database disagree, the database is what is running.
+
+\section{Your copy is still a scratch copy}
+
+Here is the section that earns the chapter, and it is shorter than it used to be, because half of what it warned about was fixed on 2026-07-17 and the fix is what the rest of this chapter has been showing you.
+
+The old warning was this. Both identity columns were declared \verb|BIGINT GENERATED BY DEFAULT AS IDENTITY|, which is a counter, and it lived inside your container. Your labmate booted the same stem cell from the same directory, inserted their first sample, and got object 9, exactly as you did. Two different samples, one name. Pouring their rows into your instance would have landed every reference on the wrong object.
+
+That is gone. \verb|o.i| and \verb|r.i| are UUIDs now, and the two halves of the fix are the two halves of the whitepaper's prescription: the fingerprint for anything that is a function of its content, a random time-ordered identifier for everything else. So your sweep and your labmate's sweep of the same file get the same id, computed independently on two machines that never spoke, and your sample and their sample get different ids for the same reason. You have already seen both facts in this chapter. They are the same fact seen from two sides.
+
+\begin{Correspondence}{The collision is gone, and you can watch it not happen}{Boot two stem cells, insert a different sample into each, and hash the same bytes on both.}
+The container name is hardcoded, so the second instance needs a different name as well as a different \texttt{YDB\_PORT}; \texttt{-p} alone will not save you. Everything else is the same directory, which is exactly the situation you and your labmate are in. The two lines below are the entire argument: what was minted diverges, what was computed from content agrees.
+\begin{Check}
+-- on each instance, a different sample:
+insert into o (j) values ('{"kind":"sample","id":"A"}') returning i;
+                             -- 019f6e53-75fd-7b00-9395-52adbf233377
+insert into o (j) values ('{"kind":"sample","id":"B"}') returning i;
+                             -- 019f6e55-0333-78a8-a307-f22afe1833e4  (different)
+
+-- on each instance, the same bytes:
+select blob('7855f1f7d05d40ca22b0827f9579873b7396f122649a24956cf762def6a553dd');
+                             -- 7855f1f7-d05d-80ca-a2b0-827f9579873b  (both)
+
+-- and they know they are not each other:
+select instance_id();        -- a different UUID on each
+\end{Check}
+\end{Correspondence}
+
+So why is this section still here? Because a solved identity problem is not a solved distribution problem, and it is easy to read the paragraph above as more than it says. There is still no sync channel. Nothing in this substrate ships rows from one instance to another, in either direction, on any schedule. Merge is not merely unimplemented, it is untested, because there is nothing yet to test. What changed is that the blocker moved: the reason merge could not work was arithmetic, and now the reason it does not work is that nobody has written it. Those are very different problems and only one of them has been retired. Ch.12 is about the one that has not.
+
+So treat your instance as scratch until then, which is not much of a hardship. An empty stem cell is for learning the shape of the thing and for putting your own work in, and both of those work fine on one machine. And do not let anyone tell you that two instances can now be combined. Two instances can now be combined \emph{without collisions}, which is a statement about what will not go wrong, by somebody who has not yet built the thing that would go.

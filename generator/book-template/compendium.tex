@@ -1,0 +1,85 @@
+\documentclass[11pt,openany]{book}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}                        % scalable; microtype expansion needs it
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{tikz-cd}                        % commutative diagrams (Part III)
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+% --- Lab slot vocabulary -------------------------------------------------
+% slots.tex holds generic \providecommand defaults so an un-filled book still
+% compiles; a lab profile then \renewcommand's each slot. Inputs must come in
+% this order (defaults first, profile second) and before the tiers package.
+\input{slots.tex}
+\input{profile-levylab.tex}
+% To generate a book for another lab, replace the profile above with that lab's
+% profile-<lab>.tex and leave slots.tex untouched.
+% -------------------------------------------------------------------------
+
+\usepackage{tiers}
+
+\lstdefinestyle{sql}{
+  language=SQL, basicstyle=\ttfamily\small, keywordstyle=\color{blue!60!black},
+  commentstyle=\color{gray}, breaklines=true, frame=leftline, framesep=6pt,
+  xleftmargin=10pt, showstringspaces=false
+}
+\lstset{style=sql}
+
+\title{\Huge Yoneda\\[0.4em]\Large A Categorical Substrate for Laboratory and Personal Knowledge\\[0.8em]
+\normalsize\textit{A thing is known by its relationships. This is the Yoneda lemma read as an instruction for building things.}}
+\author{Jeremy Levy}
+\date{Draft, \today}
+
+\begin{document}
+\frontmatter
+\maketitle
+
+\tableofcontents
+
+\input{chapters/00-introduction}
+
+\mainmatter
+
+\part{Practical}
+\input{chapters/01-what-this-is}
+\input{chapters/02-boot}
+\input{chapters/03-saving-a-measurement}
+\input{chapters/04-never-delete}
+\input{chapters/05-entities-are-assembled}
+\input{chapters/06-anti-patterns}
+
+\part{The Substrate}
+\input{chapters/07-seven-lines}
+\input{chapters/08-objects-and-witnesses}
+\input{chapters/09-the-rule-tower}
+\input{chapters/10-the-rules}
+\input{chapters/11-identity}
+\input{chapters/12-distribution}
+
+\part{The Mathematics}
+\input{chapters/13-yoneda}
+\input{chapters/14-site-and-functors}
+\input{chapters/15-divergence-and-geometry}
+\input{chapters/16-quantum-correspondence}
+\input{chapters/17-calibration}
+\input{chapters/18-open-problems}
+
+\part{A Mature Lineage}
+\input{chapters/19-names-lineage}
+
+\backmatter
+% Bibliography disabled 2026-07-16: the bibliography agent died on the session
+% limit, and the chapters currently contain ZERO \cite keys, so there is nothing
+% to resolve yet. Re-enable once the verification pass has added real citations.
+% \bibliographystyle{plain}
+% \bibliography{yoneda}
+
+\end{document}

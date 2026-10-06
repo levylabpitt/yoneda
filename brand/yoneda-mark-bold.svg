@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-label="Yoneda">
+<title>Yoneda</title>
+<desc>Hiragana yo, the symbol used for the Yoneda embedding. Curve fitted to the mean skeleton of 14 OFL-licensed Japanese typefaces; weight and terminals original.</desc>
+<g fill="none" stroke="#111" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+<path d="M 43.5 28.0 C 60 26.6, 78 25.8, 96.5 25.2"/>
+<path d="M 46.0 0.5 C 54.2 11.8, 47.9 52.2, 50.7 83.1 C 46.7 99.0, 10.5 93.4, 18.9 95.4 C 2.1 93.0, 4.8 81.6, 6.8 79.1 C 11.6 72.4, 26.2 72.0, 30.5 72.3 C 38.0 72.6, 46.0 77.0, 50.7 83.1 C 63.0 86.0, 80.0 89.2, 99.3 88.8"/>
+</g>
+</svg>

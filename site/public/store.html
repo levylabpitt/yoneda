@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yoneda Store</title>
+<meta name="description" content="Take what another yoneda already worked out. Knowledge about file formats, never anything about your files.">
+<style>
+  :root { --ink:#1a1a19; --paper:#f6f4ef; --soft:#6b6862; --line:#e2ddd3; --accent:#b1400e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#eceae4; --paper:#14140f; --soft:#9c988e; --line:#2b2a24; --accent:#e0742f; }
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; }
+  body {
+    background:var(--paper); color:var(--ink);
+    font:400 17px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex; justify-content:center; padding:8vh 22px 12vh;
+  }
+  main { max-width:640px; width:100%; }
+  h1 { font:600 15px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.16em;
+       text-transform:uppercase; margin:0 0 26px; color:var(--soft); }
+  .lede { font-size:23px; line-height:1.5; margin:0 0 34px; }
+  p { margin:0 0 20px; }
+  .rule { border:0; border-top:1px solid var(--line); margin:38px 0; }
+  h2 { font:600 13px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+       text-transform:uppercase; color:var(--soft); margin:0 0 16px; }
+  .three { display:grid; gap:20px; }
+  .three b { font-weight:600; }
+  .three span { color:var(--soft); }
+  code { font:400 14px ui-monospace, "SF Mono", Menlo, monospace;
+         background:color-mix(in srgb, var(--ink) 7%, transparent);
+         padding:2px 6px; border-radius:4px; }
+  footer { margin-top:44px; color:var(--soft); font:400 14px ui-sans-serif,system-ui,sans-serif; }
+  a { color:var(--accent); text-decoration:none; border-bottom:1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  a:hover { border-bottom-color:var(--accent); }
+
+  /* search */
+  .find { margin:0 0 8px; }
+  .find input {
+    width:100%; padding:13px 15px; border:1px solid var(--line); border-radius:8px;
+    background:color-mix(in srgb, var(--ink) 3%, transparent); color:var(--ink);
+    font:400 16px ui-sans-serif,system-ui,sans-serif;
+  }
+  .find input:focus { outline:none; border-color:var(--accent); }
+  .count { color:var(--soft); font:400 13px ui-sans-serif,system-ui,sans-serif; margin:0 0 18px; }
+  ul.hits { list-style:none; padding:0; margin:0; }
+  ul.hits li { border-top:1px solid var(--line); padding:15px 0; }
+  ul.hits li:last-child { border-bottom:1px solid var(--line); }
+  .ext { font:600 14px ui-monospace, Menlo, monospace; }
+  .what { color:var(--soft); display:block; font-size:15px; margin-top:3px; }
+  .tag { float:right; font:600 10px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em;
+         text-transform:uppercase; color:var(--soft); border:1px solid var(--line);
+         padding:5px 8px; border-radius:4px; }
+  .none { color:var(--soft); padding:18px 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Yoneda Store</h1>
+
+  <p class="lede">Take what another yoneda already worked out.</p>
+
+  <p>The first time your notebook meets a file format it has never seen, it asks an AI what the format means, and writes the answer down as a permanent part of what it knows. That costs a little money and a few seconds, once. Every file of that kind afterwards is free, because the question has already been answered.</p>
+
+  <p>The store is where that answer goes so that nobody else has to buy it again. One group teaches its notebook to read an instrument's files; everyone else takes the result. The more groups do this, the less any one of them pays.</p>
+
+  <hr class="rule">
+
+  <h2>What travels</h2>
+
+  <p>Only what a format <i>means</i>. That the sample interval of a LabVIEW measurement file lives in a field called <code>wf_increment</code> is a fact about the format, true in every lab, and worth sharing. That your scans sit in a folder named after the student who took them is a fact about <i>your</i> filesystem, useful to you and nobody else, and it stays on your machine.</p>
+
+  <p><b>Nothing about your files is published here.</b> Not their names, not their contents, not where they live, not who made them. The line is drawn at the moment the notebook learns something, and it is drawn by the notebook, not by you remembering to be careful.</p>
+
+  <hr class="rule">
+
+  <h2>Search</h2>
+
+  <div class="find">
+    <input id="q" type="search" placeholder="Search formats, instruments, extensions" autocomplete="off" aria-label="Search the store">
+  </div>
+  <p class="count" id="count"></p>
+  <ul class="hits" id="hits"></ul>
+
+  <hr class="rule">
+
+  <h2>Three commitments</h2>
+  <div class="three">
+    <p><b>Nothing here is an authority.</b> <span>What you take from the store arrives as a claim, the same as anything a colleague tells you. Your notebook weighs it against what it already believes. Nothing published here can overwrite what your instance knows.</span></p>
+    <p><b>Two labs that learn the same thing write the same record.</b> <span>A record is named by a fingerprint of its own content, so agreement needs no coordination. Sharing is not a synchronization problem; identical answers are already the same answer.</span></p>
+    <p><b>Disagreement is kept.</b> <span>Two groups can publish different readings of one format, because their instruments genuinely differ. Both stay. A store that silently picked a winner would eventually pick the one that was wrong for your rig.</span></p>
+  </div>
+
+  <hr class="rule">
+
+  <h2>Why a plasmid</h2>
+
+  <p>Every yoneda descends from the same empty starting point and records its own birth; that is inheritance, and it runs in one direction. What the store moves is different. A single self-contained thing, conferring one capability, passing between instances that are not related to each other, which the recipient is free to keep or to drop.</p>
+
+  <p>Bacteria do exactly this, and the package they pass around is called a plasmid. Acquiring one does not change what you descended from. Several versions circulate at once and none of them is the official one. The word is borrowed because it is accurate, not because it is decorative.</p>
+
+  <hr class="rule">
+
+  <h2>Status</h2>
+
+  <p>Nothing is published yet. The store is a real instance with its own beginning, like every other yoneda, and it is empty. The channel that moves plasmids between instances is designed and not yet built. The list above is what is queued, in the order the lab is likely to need it.</p>
+
+  <footer>
+    Levy Lab &middot; University of Pittsburgh &middot; <a href="https://yoneda.app/">yoneda.app</a>
+  </footer>
+
+<script>
+// Queued, not published. Kept honest: every row says so until a real plasmid exists.
+const QUEUED = [
+  { ext: ".tdms",   what: "LabVIEW measurement files. Properties carry sample interval, channel names, and acquisition settings without reading the data arrays." },
+  { ext: ".ibw",    what: "Igor binary waves, written by Asylum AFMs. The wave note carries the full scan parameter set. First targets: MFP-3D and Cypher." },
+  { ext: ".h5",     what: "HDF5 containers. Structure varies by writer, so this is likely several plasmids rather than one." },
+  { ext: ".sxm",    what: "Nanonis scanning-probe files. Header carries bias, setpoint, and scan geometry." },
+  { ext: ".dat",    what: "Ambiguous by design; the extension says nothing. Recognition has to come from the header bytes, not the name." }
+];
+
+const q = document.getElementById("q");
+const hits = document.getElementById("hits");
+const count = document.getElementById("count");
+
+function render(term) {
+  const t = term.trim().toLowerCase();
+  const rows = t ? QUEUED.filter(r => (r.ext + " " + r.what).toLowerCase().includes(t)) : QUEUED;
+  count.textContent = t
+    ? rows.length + (rows.length === 1 ? " match" : " matches") + " of " + QUEUED.length + " queued · 0 published"
+    : QUEUED.length + " formats queued · 0 published";
+  hits.innerHTML = "";
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.className = "none";
+    li.textContent = "Nothing queued matches that. Once the store is live, an unmatched search is the interesting case: it means your notebook is about to learn something nobody has published yet.";
+    hits.appendChild(li);
+    return;
+  }
+  for (const r of rows) {
+    const li = document.createElement("li");
+    const tag = document.createElement("span");
+    tag.className = "tag"; tag.textContent = "queued";
+    const ext = document.createElement("span");
+    ext.className = "ext"; ext.textContent = r.ext;
+    const what = document.createElement("span");
+    what.className = "what"; what.textContent = r.what;
+    li.append(tag, ext, what);
+    hits.appendChild(li);
+  }
+}
+q.addEventListener("input", () => render(q.value));
+render("");
+</script>
+</main>
+</body>
+</html>

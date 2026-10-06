@@ -1,0 +1,316 @@
+\chapter{The Quantum Correspondence}
+
+One row of this database has been carrying an unresolved physics question for a year, and it was row number one until identities became UUIDs. It says the consensus law is linear, marks itself \texttt{seed-prior}, and appends a note saying a 2025 paper of ours used the square instead. The note calls the difference an empirical parameter rather than a bug, which is the correct posture and also, as this chapter will show, a posture nobody has ever been in a position to act on.
+
+The chapter does three things: establishes what the note refers to, because its bibliography is wrong and its substance is not; asks whether the exponent is free at all, which is a question about Gleason's theorem; and reports the measurement that decides whether any of this is currently answerable, which is one query nobody had run until this chapter was written.
+
+\section{The discrepancy, sourced}
+
+Here is the row, verbatim, from \texttt{select jsonb\_pretty(j) from o where j->>'name'='consensus'}:
+
+\begin{lstlisting}[language=]
+{
+    "law": "linear",
+    "name": "consensus",
+    "note": "replace by calibrated law; candidates: linear, quadratic (Born),
+             t-norms. The 2025 QM paper used c^2, the 2025 consensus view
+             used c; the discrepancy is an empirical parameter, not a bug.",
+    "type": "rule",
+    "level": 2,
+    "status": "seed-prior",
+    "definition": "truth = sum(v*c)/sum(c) per (type,o1,o2)"
+}
+\end{lstlisting}
+
+It is the only rule in the database with no \texttt{date} field: it was there before the rules had dates. It used to be \texttt{o.i = 1} as well, and this chapter used to say so, which is why the query above addresses it by name. Integer one is not a thing any more. The row that was first is now a uuidv7 that sorts first on most boots and second on some of them, and Chapter 10 has the count.
+
+\begin{Correspondence}{The $c^2$ referent is \texttt{Spacetime Database Topology/main.tex}, not \texttt{QDA.tex}}{Grep the Overleaf tree for the Born pattern and its vocabulary: it hits one file, and none of the drafts the note appears to name.}
+The note says ``the 2025 QM paper.'' The obvious candidate is \texttt{QDA.tex}, whose title begins with ``Quantum.'' That candidate is wrong, and instructively so. \texttt{QDA.tex} has no confidence field, no $c$, no $c^2$, no Born rule, and no equations at all; it loads \texttt{amsmath} and never uses it. ``Quantum'' there means ``atom,'' a claim about scale-dependent indivisibility, applied as a find-and-replace over an earlier draft titled ``Atomic Database Architecture.'' The paragraph justifying the word was commented out in one descendant and deleted in the next, so the word outlived its own justification by two drafts and then went too.
+
+The $c^2$ is in a different folder, whose name is a lie. \texttt{Spacetime Database Topology/main.tex} contains no topology, no curvature, no manifold, and no metric. Its actual title is ``Quantum Mechanics Emerges from Classical Information Branching in Time.'' It is the branching paper, and the Born rule is in it verbatim, at line 180:
+\begin{equation}
+P(m) = \frac{\sum_{b:\,\mathrm{outcome}(b)=m} c_b^2}{\sum_{b \in B_t} c_b^2}
+\label{eq:born}
+\end{equation}
+glossed, on the line above the equation, ``Born's rule emerges from branch confidence normalization.''
+\begin{Check}
+cd "C:/Users/JLEVY/Dropbox/Apps/Overleaf"
+grep -n 'c_b\^2' 'Spacetime Database Topology/main.tex'
+    -- 180: P(m) = ... c_b^2 ... , the Born rule, and line 177 is the gloss
+grep -rniE 'born|confidence|weight|c\^2' 'Categorical Database Architecture/'
+    -- nothing, in any of the seven .tex files, QDA.tex included
+\end{Check}
+\end{Correspondence}
+
+So the note's provenance claim is substantially true and bibliographically wrong. Anyone auditing it by opening the file the note appears to name would conclude the note was fabricated. It was not. It was misfiled.
+
+\subsection{The proof fails at exactly this exponent}
+
+The branching paper does not stop at Equation~\ref{eq:born}. It states a theorem, and that theorem is why this chapter cannot treat the $c^2$ arm as inherited work. Verbatim:
+
+\begin{quote}
+\textbf{Theorem.} For any quantum state $|\psi\rangle = \sum_i \alpha_i |i\rangle$, there exists a branch configuration $B$ such that: (1) Measurement probabilities match: $P_B(i) = |\alpha_i|^2$; (2) Evolution matches: $U|\psi\rangle \leftrightarrow U(B)$; (3) Entanglement preserved under partial measurement.
+
+\textbf{Proof.} Construct $B = \{(b_i, \sqrt{|\alpha_i|}, |i\rangle, \mathrm{phase}(\alpha_i))\}$. Measurement selects branch $b_i$ with probability $c_i^2 = |\alpha_i|^2$. Evolution transforms each branch according to $U$, preserving linearity. $\square$
+\end{quote}
+
+\begin{Correspondence}{The proof's second sentence contradicts its first}{Substitute the construction's own definition into its own conclusion and the exponent comes out wrong.}
+The construction sets $c_i = \sqrt{|\alpha_i|}$. Then $c_i^2 = |\alpha_i|$, not $|\alpha_i|^2$. To recover the Born rule from Equation~\ref{eq:born} you need $c_i = |\alpha_i|$, which is not what is constructed.
+A one-character error, sitting precisely at the joint this book cares about. It cannot be repaired in a footnote, because the repair is not the point. The point is what the error is evidence for: nobody ever checked the exponent. Had the square been derived, or even arithmetically exercised once against the construction built to justify it, this would have been caught in the writing. It was not caught in the writing, in the review, or in the fourteen months since. Two further defects in the same eight lines: item (3) is never mentioned in the proof, and item (2) is discharged by the phrase ``preserving linearity,'' which is not an argument.
+\end{Correspondence}
+
+\begin{Correspondence}{The paper eliminates complex numbers and is defined in terms of them}{Read the abstract against lines 167 and 197 of the same file.}
+The abstract says: ``No complex numbers, no Hilbert spaces.'' Line 167 defines evolution by $c_{b'} = c_b \cdot \langle s'|U|s\rangle$, which is a Hilbert-space inner product. Line 197 smuggles $\mathrm{phase}(\alpha_i)$ into the branch tuple as a fourth component.
+The model is defined in terms of the thing it claims to eliminate, and the entire emergence claim rests on the elimination. A phase is a complex number wearing a hat. Interference, the only reason phase matters, is never demonstrated anywhere in the paper, and a model with real non-negative confidences and no interference term cannot reproduce quantum mechanics.
+\end{Correspondence}
+
+\begin{Correspondence}{The exponent was never pinned down anywhere in the corpus}{Grep the whole \texttt{.tex} corpus for the exponent's vocabulary: every hit lands in one file, and in that file the only derivation is the eight lines above.}
+\begin{Check}
+cd "C:/Users/JLEVY/Dropbox/Apps/Overleaf"
+grep -rniE 'born|gleason|confidence|c\^2|weight|lattice|amplitude' \
+     'Categorical Database Architecture/'
+    -- nothing, across all seven .tex files
+grep -rniE 'born|gleason|confidence|c\^2|weight|lattice|amplitude' \
+     'Spacetime Database Topology/main.tex'
+    -- every hit in the corpus is here, and the only derivation is lines 177-198
+\end{Check}
+Nothing in the branching model as stated forces the square rather than the first power. The word ``emerges'' is doing unearned work: the exponent was put in by hand and reported as a discovery. The rule row frames linear-versus-Born as a discrepancy between two prior positions, as though two arguments had been made and disagreed. Only one was made, and it does not survive its own proof.
+\end{Correspondence}
+
+\subsection{The argument the paper should have made}
+
+There is a real argument for the square, it is one line, and the paper misses it. State it, because it is the strongest thing available and because its failure to transfer is the chapter's actual result.
+
+\begin{Theorem}{Unitarity conserves $\sum c^2$ and does not conserve $\sum c$}{Parseval, or equivalently the statement that the columns of a unitary matrix are unit vectors. Any quantum mechanics text; see Nielsen and Chuang \S2.1.}
+Take the paper's own evolution rule, $c_{b'} = c_b \langle s'|U|s\rangle$, with $U$ unitary. Sum the squares over the children of one branch:
+\begin{equation}
+\sum_{s'} |c_{b'}|^2 = |c_b|^2 \sum_{s'} |\langle s'|U|s\rangle|^2 = |c_b|^2,
+\end{equation}
+because $U$ unitary means $\sum_{s'} |\langle s'|U|s\rangle|^2 = 1$. Total $\sum_b c_b^2$ is therefore conserved, branch-locally, under evolution. The first power is not: $\sum_{s'} |\langle s'|U|s\rangle|$ is in general strictly greater than one, so $\sum_b c_b$ grows under branching and normalizes to nothing stable.
+
+So within the branching model, given that evolution rule, the exponent $2$ is forced, and it is forced by normalization rather than by Gleason. The paper's fourth ``key insight'' reads ``Unitarity = Branch conservation: Total confidence preserved through evolution,'' which is this fact, stated without the computation and never connected to Equation~\ref{eq:born}. The paper had the argument and did not notice it was an argument.
+\end{Theorem}
+
+\begin{Open}{Does the normalization argument license importing $c^2$ into the consensus law?}{Exhibit an analogue of $U$ for the evidence setting, and say what it conserves and why anything should be.}
+What is wanted is a composition law for confidence along a zigzag under which some power of $c$ is conserved. Absent that, the import is unlicensed and the exponent is free.
+The argument above forces the square only because there is a unitary. It is unitarity, not branching, that does the work, and the database has no unitary. It has no evolution operator, no inner product, and no conservation law, and the composition law for confidence along multi-hop identifications is precisely the parameter DESIGN.md flags as ``fit, not decreed'' and that has never been fit. Two email addresses linked through a third do not compose by an inner product, and nothing says total confidence should be conserved as evidence accumulates. It should not be: accumulating evidence is supposed to raise confidence, not redistribute a fixed budget of it.
+
+So the 2025 paper imported an exponent from a setting where a conservation law forces it into a setting with no conservation law, and reported it as a finding. That is the whole of the $c^2$ arm's provenance. It is not evidence for the square in the consensus law. It is evidence that the square is right when there is a unitary, which here there is not.
+\end{Open}
+
+\section{Gleason}
+
+The honest question, and the one the rule row's ``empirical parameter, not a bug'' framing forecloses without noticing: what if the exponent is not free? If the consensus law is a measure over a lattice of propositions, then there is a theorem that forces the square, and no amount of fitting will move it. That theorem is Gleason's, and it is worth doing properly.
+
+\begin{Theorem}{Gleason 1957}{A.\ M.\ Gleason, ``Measures on the Closed Subspaces of a Hilbert Space,'' J.\ Math.\ Mech.\ \textbf{6} (1957) 885--893.}
+Let $\mathcal{H}$ be a real or complex separable Hilbert space of dimension $\geq 3$. Let $\mu$ assign to each closed subspace of $\mathcal{H}$ a number in $[0,1]$, such that $\mu(\mathcal{H}) = 1$ and $\mu$ is countably additive on families of mutually orthogonal subspaces:
+\begin{equation}
+\mu\Big(\bigoplus_i V_i\Big) = \sum_i \mu(V_i) \quad \text{for } V_i \perp V_j,\ i \neq j.
+\end{equation}
+Then there exists a positive semi-definite trace-class operator $\rho$ with $\mathrm{Tr}\,\rho = 1$ such that
+\begin{equation}
+\mu(P) = \mathrm{Tr}(\rho P)
+\end{equation}
+for every projection $P$. The Born rule is not an axiom. It is the unique consequence of assigning probabilities additively to orthogonal alternatives in dimension three or higher.
+\end{Theorem}
+
+That is a strong theorem and it is worth being frightened by. If it applies here, $c^2$ is not a seed prior awaiting a fit; it is forced, the fit is unnecessary, and rule row 1 has been mislabeled since it was written. So the question is not whether Gleason is true. It is: which of Gleason's hypotheses does the consensus law violate? Go through them in order.
+
+\subsection{Dimension $\geq 3$}
+
+Gleason needs dimension three. In dimension two the theorem is famously false: the projections onto rays of a qubit are parameterized by the Bloch sphere, orthogonal pairs are antipodal, and any $f$ on the sphere with $f(\mathbf{n}) + f(-\mathbf{n}) = 1$ is admissible. Most such $f$ are not of the form $\mathrm{Tr}(\rho P)$. Additivity over orthogonal families constrains almost nothing when every family is a pair.
+
+The consensus law groups by \texttt{(type, o1, o2)}, and its alternatives within a group are the distinct values its witnesses claim. So the relevant dimension is the number of witnesses per group. That number is measurable, and nobody had measured it.
+
+\begin{Correspondence}{94.8\% of consensus groups have exactly one witness}{One group-by over the consensus view, run 2026-07-16 against the universe that ended the next morning.}
+This is the measurement this chapter turns on, and it is the one measurement in it that can no longer be re-run against a running database. The instance it was taken from was wiped on 2026-07-17; the numbers below are reproducible only by restoring \texttt{backups/ydb/ydb-pre-bigbang-2026-07-17.dump} to a throwaway container. Run the same query live and you get no rows, because \texttt{consensus} over an empty \texttt{r} is empty. That is not a refutation of what follows. It means the argument below is now an argument about an archived corpus, and it is printed in the past tense for that reason.
+\begin{Check}
+-- against a restore of ydb-pre-bigbang-2026-07-17.dump, NOT the live instance
+SELECT witnesses, count(*) FROM consensus GROUP BY witnesses ORDER BY witnesses;
+    -- 186,324 groups total; the low end is tabulated below
+    -- live, for contrast: 0 groups, because r is empty
+\end{Check}
+The distribution, complete for the low end:
+
+\begin{center}
+\begin{tabular}{rr}
+\toprule
+witnesses in group & number of groups \\
+\midrule
+1 & 176{,}610 \\
+2 & 8{,}517 \\
+3 & 51 \\
+4 & 1{,}064 \\
+5 & 22 \\
+6 & 24 \\
+$\geq 7$ & 36 \\
+57{,}994 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Total groups 186{,}324. One witness: 176{,}610, or 94.8\%. Two witnesses: 8{,}517, a further 4.6\%. Three or more: 1{,}197 groups, or 0.64\%.
+
+The single group with 57{,}994 witnesses is the outcome rows. They have \texttt{o1} and \texttt{o2} null, so they collapse into one group with a null key, and they are in the view at all only because \texttt{consensus} reads \texttt{FROM r} rather than \texttt{FROM r\_active}. The bug documented in Chapter~8 is visible in this table as a single row.
+\end{Correspondence}
+
+\begin{Theorem}{Gleason fails in dimension 2}{Standard; worked in Peres, \textit{Quantum Theory: Concepts and Methods}, \S7-2. Any $f$ on the Bloch sphere with $f(\mathbf{n}) + f(-\mathbf{n}) = 1$ is a frame function, and the non-Born ones are dense.}
+So for 94.8\% of the corpus there is no lattice at all, a single witness offering no alternatives to be additive over, and for a further 4.6\% the dimension is two, where the theorem is false and non-Born measures abound. Gleason has something to say about at most 0.64\% of the consensus groups in this database, and that is before asking whether the lattice is the right kind.
+\end{Theorem}
+
+That answer was one query away for a year. It does not settle the mathematical question, and I will not pretend it does: a law is not exempt from a theorem because most of its instances are small, and if the law were a Gleason measure the 1{,}197 groups of dimension three or more would force the exponent everywhere by uniformity. But it relocates the question, and it establishes something worse than I went looking for. Any empirical attack on linear-versus-Born is being conducted on a corpus that is 94.8\% single-witness, and with one witness $vc/c = vc^2/c^2 = v$. The two laws are numerically identical on 94.8\% of the data. They differ, at most, on 0.64\% of it.
+
+\subsection{The lattice}
+
+This is the hypothesis that most likely fails, and the chapter should say so plainly.
+
+Gleason needs the lattice of closed subspaces of a Hilbert space. That lattice is orthomodular and, crucially, \emph{non-distributive}, and the non-distributivity is where all the force comes from. The theorem works because there are propositions that cannot be jointly tested, so an additive assignment over one orthogonal family constrains the assignment over an overlapping family in a way that has essentially one solution. Remove non-distributivity and the machinery idles.
+
+The consensus law's propositions are claims of the form ``the value of this relation is $v$.'' Two witnesses to the same \texttt{(type, o1, o2)} claiming different values are claiming incompatible things, but incompatible in the ordinary sense that at most one is right, not in the quantum sense that no experiment tests both. There is no non-commeasurability anywhere in the corpus. You can ask of every value-claim whether it holds, all at once, and the answers are jointly consistent or jointly not. That is a Boolean algebra.
+
+\begin{Open}{Is the proposition lattice of value-claims Boolean?}{Exhibit the lattice explicitly, then check distributivity on a triple.}
+State the propositions, the meet, the join, and the orthocomplement. If the result is distributive, Gleason's conclusion is vacuous and $c^2$ is free. Nobody has written the lattice down, which is why this is Open rather than Correspondence.
+On a Boolean algebra, every finitely additive $[0,1]$-valued measure with $\mu(1)=1$ is just a probability measure, and there is no Born rule to force: the class of admissible measures is enormous and $\mathrm{Tr}(\rho P)$ is not distinguished within it. So if the lattice is Boolean, Gleason says nothing, the square is not forced, and the rule row's ``empirical parameter'' framing is correct after all.
+
+I believe this is the answer. I am marking it Open rather than Correspondence because believing is not exhibiting, and the lattice has never been written down. The failure mode here is exactly the one this book exists to catch: it would be easy, and wrong, to write ``the lattice is Boolean, therefore Gleason does not apply'' as though that were a result. It is a conjecture about a structure nobody has constructed.
+\end{Open}
+
+\subsection{Additivity, and the type error underneath it}
+
+This is the hypothesis the system actually violates, and it violates it more deeply than the word ``violates'' suggests.
+
+Gleason's $\mu$ assigns a number to a \emph{proposition}. The consensus law is
+\begin{equation}
+\mathrm{truth} = \frac{\sum_i v_i c_i}{\sum_i c_i},
+\end{equation}
+which assigns a number to a \emph{group}. It is a weighted mean of values. It is not a measure over propositions at all, additive or otherwise. It does not have the type of a Gleason measure.
+
+\begin{Correspondence}{The consensus law has the wrong type to be a Gleason measure}{Read the view definition and compare its output domain with a measure's: one real per group, not one per proposition.}
+\begin{Check}
+-- stem-cell.sql, the consensus view, verbatim
+CREATE VIEW consensus AS
+SELECT d->>'type' AS type, o1, o2,
+       sum((d->>'v')::REAL * c) / sum(c) AS truth,   -- one real per group
+       count(*) AS witnesses
+FROM r_active
+GROUP BY 1, 2, 3;    -- the domain is (type, o1, o2) groups; a measure's domain
+                     -- is propositions, and a group is not a proposition
+\end{Check}
+The \texttt{FROM} clause read \texttt{r} rather than \texttt{r\_active} until 17 July 2026, and that was a real bug with a real cost, which Chapters 8 and 19 own. It makes no difference to this argument: averaging over retracted rows changes which number comes out of the group and not whether a group is a proposition. The type error survives its repair untouched.
+This is not a technicality and it is the chapter's deliverable. To ask whether Gleason forces the exponent you must first write the consensus law as a measure over an explicit proposition lattice, and nobody has. Until somebody does, ``does Gleason apply'' is not a question with a truth value, because there is no $\mu$ whose hypotheses could be checked.
+
+The reformulation is not obviously hard. A first attempt: for a group with claimed values $\{v_1, \dots, v_n\}$, let the propositions be the events ``the value is $v_i$,'' let $\mu(v_i) = c_i / \sum_j c_j$ under the linear law or $c_i^2 / \sum_j c_j^2$ under the Born law, and observe that the view's output is then the \emph{expectation} $\sum_i v_i\, \mu(v_i)$ and not the measure itself. Under that reading the two laws are two candidate measures and the view reports a moment of them, which is a defensible thing to have been doing by accident. But the reading has to be argued rather than asserted, and it immediately walks into the lattice question: those events are mutually exclusive and exhaustive, which is a partition, which is a Boolean algebra, which is where Gleason dies.
+\end{Correspondence}
+
+\subsection{Non-contextuality}
+
+The last hypothesis, and the one this system violates on purpose. Gleason's $\mu$ depends only on the subspace, never on which orthogonal family the subspace is measured within. That is non-contextuality, and it is a hypothesis, not a conclusion. It is also exactly what this system refuses.
+
+\begin{Correspondence}{Confidence in this system is contextual by design}{Read two rule rows: both make the weight of a claim depend on something other than the claim.}
+\rulerow{source-as-instrument-v1} says an external source ``accrues calibrated reliability,'' so the same claim from a different source carries different weight. \rulerow{window-censoring-v1} says ``confidence in first/earliest/never claims must degrade toward the window boundaries,'' so the same claim carries less weight near a corpus edge.
+A confidence that depends on how a claim was obtained, and on where in the source's coverage window it sits, is precisely a context-dependent assignment. The $c$ attached to ``\labPerson{} was at \labVenue{} in 2019'' is not a function of the proposition. It is a function of the proposition together with the instrument that produced it and that instrument's calibration state. Two witnesses to one proposition, from LinkedIn and from an email header, carry two different $c$ values, and the whole architecture is built to make that so.
+\end{Correspondence}
+
+\begin{Theorem}{Kochen-Specker 1967}{S.\ Kochen and E.\ P.\ Specker, ``The Problem of Hidden Variables in Quantum Mechanics,'' J.\ Math.\ Mech.\ \textbf{17} (1967) 59--87. In dimension $\geq 3$ it follows from Gleason.}
+In dimension three or higher there is no non-contextual assignment of definite values to all projections consistent with the algebraic relations. Contextuality is not a defect to be engineered away; it is unavoidable.
+\end{Theorem}
+
+So the relevant theorem, if any is relevant, is not Gleason but Kochen-Specker, and its conclusion runs the other way. Gleason's non-contextuality hypothesis is the one this system violates, and Kochen-Specker says that in the setting where Gleason has teeth, violating it is compulsory. The system's contextual confidence is not an embarrassment relative to the quantum analogy. It is the thing the quantum analogy says you cannot avoid. That is the most flattering sentence available here, and it is worth exactly what the lattice question is worth, which is to say it is contingent on a lattice nobody has exhibited.
+
+\subsection{Verdict}
+
+\begin{Open}{Does Gleason force the exponent?}{Reformulate the consensus law as a measure over an explicit proposition lattice, then check that lattice for distributivity.}
+The whole question turns on what the lattice comes out to be, and the two branches are very far apart:
+
+\begin{Check}
+-- if the lattice is Boolean (distributive):
+--   Gleason says nothing, c^2 is a free parameter, and it must be fit.
+
+-- if anyone exhibits a genuinely non-distributive proposition lattice
+-- over evidence claims:
+--   c^2 is FORCED, the fit is unnecessary, and the consensus rule row
+--   should be retracted rather than calibrated.
+\end{Check}
+
+The second branch would be the single most interesting result this project could produce. Note what it would require of the system: retracting a rule row, which per Chapter 9 is the one thing the design has no mechanism for.
+Not as the law is written, and probably not at all. Three hypotheses fail: the law has the wrong type to be a Gleason measure, the lattice is Boolean rather than orthomodular once reformulated the obvious way, and confidence is contextual by construction. Dimension is a fourth and the cheapest, excluding 99.4\% of the groups before any of the others is reached.
+
+The exponent is free and must be fit. Which brings us to the part that is not funny.
+\end{Open}
+
+\section{So it must be fit, and it cannot be}
+
+\begin{Correspondence}{The consensus law has no corpus}{Count the witnesses that carry a value and the consensus groups that render a non-null truth; on the archived universe both came back 1, and on the live one both are 0.}
+\begin{Check}
+-- archived, ydb-pre-bigbang-2026-07-17.dump
+SELECT count(*) FROM r WHERE d ? 'v';                    -- 1, out of 256,619 relations
+SELECT count(*) FROM consensus WHERE truth IS NOT NULL;  -- 1, out of 186,324 groups
+SELECT type, o1, o2, truth, witnesses FROM consensus WHERE truth IS NOT NULL;
+    -- (same, 2, 3), truth = 1, one witness: the whole rendered output of the law
+
+-- live, 2026-07-17
+SELECT count(*) FROM r WHERE d ? 'v';                    -- 0, out of 0
+SELECT count(*) FROM consensus WHERE truth IS NOT NULL;  -- 0, out of 0
+\end{Check}
+The view computes $\sum(v \cdot c) / \sum(c)$. Essentially no witness in the archived database carried a \texttt{v}, so \texttt{truth} was null for 186,323 of 186,324 groups, and the single surviving number was a \texttt{same} witness between the objects then numbered 2 and 3, among the first rows ever inserted. The entire rendered output of the consensus law, across \labCorpus{}, was one row of test data.
+
+The big bang changed the arithmetic and not the situation. The law now has a corpus of zero instead of a corpus of one, and one row of test data was never a corpus. If anything the new number is the more honest presentation of the same fact, because a reader who saw ``1'' could at least imagine it was a start.
+
+The rule row's framing is that the law is \texttt{seed-prior}, awaiting calibration. That is too generous to itself. A seed prior awaiting calibration is a number that will be replaced when the data arrives. This is not that: the schema has no field for the data to arrive in. Witnesses do not carry values, so there is nothing to average, so there is nothing to fit, and the choice between $\sum vc/\sum c$ and $\sum vc^2/\sum c^2$ is being adjudicated over a view that returns a single one.
+\end{Correspondence}
+
+This reaches backward into Chapter~15 and must not be softened. \rulerow{divergence-is-data-v1} rejects CRDTs, and its stated justification is calibration rather than taste: ``Preserved disagreement between authors IS the training corpus for that fit,'' where the fit is linear-versus-Born.
+
+\begin{Open}{Is the rejection of forced convergence justified by the fit it names?}{Give witnesses a value field, ingest a corpus whose disagreements carry values, and check whether preserved divergence discriminates the two laws.}
+Until that runs, the rejection stands or falls on independent grounds, and the appeal to the fit is unsupported.
+The rejection may well be right. ``CRDT strong eventual consistency is DELETE wearing a nice hat'' is an argument about recoverability and does not depend on the consensus law at all. But the rule's own text does not rest there. It rests on the fit, and the fit has no corpus. The book should not launder the good argument through the bad one.
+\end{Open}
+
+\begin{Correspondence}{The plan schedules the measurement sixth of six}{Read \texttt{whitepaper-lab-yoneda.md} \S8. Step 6, last: capture moves into the acquisition software ``and begins measuring how reliable each source and each kind of connection is.''}
+Everything this chapter, Chapter~15, and Chapter~17 say about fitting the law depends on a step the only written plan schedules last, after a globally-unique-names change that has not been made and a capture agent that has no owner. There is no scenario in which the exponent gets settled soon.
+\end{Correspondence}
+
+\section{Two pictures, and where they fail}
+
+The correspondence has produced two slogans that circulate in this project without their breaking points attached. Attach them.
+
+\begin{Analogy}{A Bloch cube is a qubit}{Breaks immediately and cleanly at cardinality: six faces against a continuum.}
+A physical die has six faces and therefore six states; the Bloch sphere is a continuum. The cube can represent $|{+}z\rangle$ and $|{+}x\rangle$ but no superposition of them, which is to say it represents none of the states that make a qubit a qubit.
+
+The branching paper's own procedure gives the game away at step 2: ``create multiple semi-transparent cubes.'' Semi-transparency is not a face of the die. It is a second representation, silently swapped in at the only step that mattered, and the analogy carries the reader across the swap.
+The die is genuinely useful for the eigenstates and for the measurement step, and it is a real object on a real desk. It is useless for superposition, which is the entire content. An analogy that works for everything except the phenomenon is an analogy about something else.
+\end{Analogy}
+
+\begin{Analogy}{Everett, not Copenhagen}{Breaks conceptually at selection, and fatally at the branch column, where the rows and the distinct branches have always been the same number.}
+Conceptually: in Everett every branch is realized and none is selected, whereas \texttt{realize()} exists precisely to select one. The rule adopts the Everett slogan and implements the Copenhagen move, with the sole improvement that the unselected branches are not destroyed. Factually it is worse than that, and the two counts show it.
+\begin{Check}
+-- archived, ydb-pre-bigbang-2026-07-17.dump
+SELECT count(*) FROM r;            -- 256,619
+SELECT count(DISTINCT b) FROM r;   -- 256,619, so every branch holds exactly one row
+
+-- live: 0 and 0, which makes the same point and proves less
+\end{Check}
+No two rows have ever shared a branch, so no superposition has ever formed, no interference is possible, and \texttt{realize()} has been called zero times, on either universe. The slogan describes a system that has never run.
+
+This is the live text of \rulerow{divergence-is-data-v1}, and it is the book's sharpest illustration of why a slogan needs a query attached. ``Everett, not Copenhagen'' is a claim about branch structure, and the branch column holds a per-row random UUID with no parent pointer. No ancestry, so no two branches are ever alternatives to each other. Chapter~15 owns what it would cost to fix that: one column.
+\end{Analogy}
+
+\begin{Correspondence}{The same weighted mean was called a theorem, posited as a Born rule, and finally marked \texttt{seed-prior}}{Three files, three dates: two Overleaf sources and the \texttt{consensus} rule row, all carrying one weighted mean under three different names.}
+\begin{Check}
+grep -n 'Descent for Measurements' 'Category Theory for Physicists/main.tex'
+    -- 307, a theorem environment; lines 317-318 are the mean itself,
+    --   sum((arrow_data->>'value')::DECIMAL * confidence) / sum(confidence),
+    --   glossed at 324 as "the weighted limit in the infinity-category
+    --   of observations"
+grep -n 'c_b\^2' 'Spacetime Database Topology/main.tex'
+    -- 180, the same quantity squared, glossed at 177 as "Born's rule emerges"
+-- and on the live database. Address the row by name: o.i is a uuidv7 now, and
+-- "WHERE i = 1" was how this check read until the identity fix made it a type
+-- error rather than merely a bad habit.
+SELECT j->>'law', j->>'status' FROM o WHERE j->>'name' = 'consensus';
+    -- linear, seed-prior
+\end{Check}
+One expression, three names. In May 2025 it was a theorem, with no proof, no data, no alternative considered, and the words ``homotopy limit'' attached to a SQL aggregate. Later in 2025 it was a law of physics, with the square, asserted to emerge from a model that does not force it and proved by an argument that gets the exponent wrong. In July 2026 it is a row that says \texttt{seed-prior} and names its own uncertainty. The tiers exist because this project, working alone, called an arithmetic mean a theorem and then a physical law, in that order, inside twelve months, and the only thing that stopped the third mistake was writing the status into the data where a query could find it.
+\end{Correspondence}
+
+The good news is small and real. The failure is a missing field, not a missing idea. Give witnesses a \texttt{v} and the corpus starts accumulating the day after. That is Chapter~18, item three, and it is cheap.

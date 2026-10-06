@@ -1,0 +1,220 @@
+\chapter{Never Delete: Retraction and Why Bad Runs Are Data}
+
+You mislabeled a \labRun{}. It is 2am, \labColdSystemShort{} has been \labColdCondition{} for six hours, and you have just noticed that everything you saved tonight is tagged as sample \labSample{} when it is actually \labSampleAlt{}, which is the one that came out of the \labFabChamber{} last week and which you grabbed from the wrong \labSampleCarrier{}. Forty \labFileFormat{} files. Your instinct, honed by every piece of software you have ever used, is to find the wrong records and fix them.
+
+Do not fix them. You cannot, and the reason you cannot is the subject of this chapter.
+
+There is exactly one operation in this system that removes history, it is not available to you at 2am, and it was used once, on 17 July 2026, on the author's own instance. It gets its own section below. Everything between here and there is true within a universe, and that qualifier turns out to be the whole of the fine print.
+
+\section{What you do instead}
+
+You add a record that says the old record is wrong.
+
+That is the whole mechanism. A relation in this database is never edited and never removed. When a relation turns out to be wrong, you write a second relation, of type \texttt{outcome}, which points at the first one and carries a verdict. The pointer is the first relation's identity, \texttt{i}, carried in the outcome's payload under the key \texttt{of}. The verdict is a string. If it says \texttt{retracted}, the original stops counting.
+
+Here is the whole thing, end to end, on the instance you booted five minutes ago. Paste it in. It creates what it then retracts, so it runs against an empty database.
+
+Two notes before you do. Identities here are UUIDs, not small integers, so nothing below can say ``this returns i = 9''; the statements look each other's identities up instead of quoting them, which is also how you should write your own. And \texttt{blob()} takes a full sha256, all 64 hex characters, and raises if you hand it anything shorter. The hash below is real. It is the sha256 of the string \texttt{tonight's \labScan}, which is not a \labFileFormat{} file, but the database has no way to know that and neither will you in four years, so hash your actual bytes.
+
+\begin{verbatim}
+-- The two durable things you were confusing at 2am.
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"\labSample"}');
+INSERT INTO o (j) VALUES ('{"kind":"sample","id":"\labSampleAlt"}');
+
+-- Tonight's \labScan. The bytes are on disk; the database gets the hash.
+SELECT blob('09b94bfc8c63903f72369ea2a47bbd336fa9d1e8a5262eb11d4b6006fac6264c',
+            '{"media_type":"\labMediaType","bytes":41200000}');
+
+-- The wrong claim, written at 03:12: this \labScan measured \labSample.
+INSERT INTO r (o1, o2, d, c)
+SELECT blob('09b94bfc8c63903f72369ea2a47bbd336fa9d1e8a5262eb11d4b6006fac6264c'),
+       i, '{"type":"measured"}', 1.0
+  FROM o WHERE j->>'id' = '\labSample';
+
+-- The correction, written at 03:47. The claim above still exists.
+SELECT retract((SELECT i FROM r WHERE d->>'type' = 'measured'
+                 ORDER BY t DESC LIMIT 1),
+               'wrong \labSampleCarrier; this \labScan is \labSampleAlt, not \labSample');
+
+-- And the claim you meant.
+INSERT INTO r (o1, o2, d, c)
+SELECT blob('09b94bfc8c63903f72369ea2a47bbd336fa9d1e8a5262eb11d4b6006fac6264c'),
+       i, '{"type":"measured"}', 1.0
+  FROM o WHERE j->>'id' = '\labSampleAlt';
+\end{verbatim}
+
+\texttt{retract()} is three lines of sugar over an \texttt{INSERT}; it writes \texttt{\{"type":"outcome","of":<uuid>,"verdict":"retracted","reason":...\}} and nothing else. The first claim is still in the table. It will be there in 2040. Nothing you can type will remove it, and nothing anybody else can type will remove it either. What changed is not the row but its standing: from now on, every query that matters routes around it. Check both halves of that sentence yourself:
+
+\begin{verbatim}
+SELECT count(*) FROM r;          -- 3: the claim, the outcome, the claim
+SELECT count(*) FROM r_active;   -- 1: the \labScan measured \labSampleAlt
+\end{verbatim}
+
+\section{The view that does the work}
+
+There is one view responsible for enforcing all of this, and it is short enough to read in full at 2am. This is the definition as it stands in the schema file, rewrapped to fit the page.
+
+\begin{verbatim}
+CREATE OR REPLACE VIEW r_active AS
+SELECT r.* FROM r
+WHERE r.d->>'type' <> 'outcome'
+  AND COALESCE((SELECT rx.d->>'verdict' FROM r rx
+                WHERE rx.d->>'type' = 'outcome'
+                  AND (rx.d->>'of')::UUID = r.i
+                ORDER BY rx.t DESC, rx.i DESC LIMIT 1), '') <> 'retracted';
+\end{verbatim}
+
+Read it in three pieces. The first line of the \texttt{WHERE} drops outcome rows themselves, because an outcome is bookkeeping about a claim and not a claim about the world. The subquery finds the most recent outcome pointing at this row. The comparison keeps the row unless that most recent outcome says \texttt{retracted}.
+
+The tiebreak in the \texttt{ORDER BY} is doing quiet work that is easy to miss. Postgres sets \texttt{t} to transaction time, not statement time, so two rows written in one transaction carry identical timestamps and \texttt{t DESC} alone cannot order them. The second key, \texttt{i DESC}, resolves it, and it resolves it correctly only because \texttt{i} is a uuidv7: the first 48 bits are a millisecond clock, so these identities sort by creation. That is not a coincidence of the format, it is why the format was chosen. If you write two outcomes about the same claim inside one transaction, the later one wins, and it wins because of a property of the identifier rather than a property of the clock column.
+
+Two consequences follow directly from those seven lines, and both matter more than they look.
+
+Latest outcome wins, which means retraction is not final. Suppose you retract tonight's \labScan{}, and then next Tuesday you find the \labSampleCarrier{} log and discover that you were right the first time: it was \labSample{}, and the thing you were confusing it with never went into \labColdSystemColloquial{} at all. You do not undo the retraction. You write a third row, another outcome pointing at the first claim, verdict \texttt{confirmed}, dated Tuesday:
+
+\begin{verbatim}
+INSERT INTO r (d)
+SELECT jsonb_build_object('type','outcome','of',
+         (SELECT i FROM r WHERE d->>'type' = 'measured'
+            AND o2 = (SELECT i FROM o WHERE j->>'id' = '\labSample')),
+       'verdict','confirmed',
+       'reason','\labSampleCarrier log: \labSampleAlt never went in \labColdSystemColloquial');
+
+SELECT count(*) FROM r;          -- 4
+SELECT count(*) FROM r_active;   -- 2: the first claim is back
+\end{verbatim}
+
+The subquery orders by \texttt{t DESC} and takes one row, so Tuesday's verdict is the one it sees, and the claim is live again. Four rows now exist: the claim, the retraction, the re-confirmation, and the claim you wrote at 03:47 that is now itself a candidate for retraction. The database has a record of you being wrong, then right, then wrong about being wrong, and it can tell you the order.
+
+And the table you actually query is not \texttt{r}. It is \texttt{r\_active}. Everything derived is supposed to build on \texttt{r\_active} and never touch raw \texttt{r} directly. The schema file says so in a comment three lines above this view, and for a year the file's own \texttt{consensus} view did not obey it, because \texttt{consensus} was defined before \texttt{r\_active} existed and got written against raw \texttt{r}. That is fixed, and the fix was to move a \texttt{CREATE VIEW} up the file. Chapter 8 owns the story.
+
+\section{What you can check, and what you can no longer check}
+
+The claim of this chapter is that nothing is ever deleted. You should not take that on faith, and until 17 July 2026 you did not have to: identities were integers handed out one at a time, so \texttt{count(*)} and \texttt{max(i)} on the objects table were equal on any honest instance and would part company forever the moment anybody deleted a row. One query, under a second, and the database had no way to fake the answer.
+
+That check is gone. Not deprecated, gone: \texttt{max(i)} on the objects table now raises \texttt{function max(uuid) does not exist}. Identities became UUIDs so that two machines could mint objects without colliding, which is the thing that had to happen before a rig's data could ever be merged into a lab copy, and the price was the density that made counting work. A dense integer sequence is a free audit log and a coordination requirement, and you cannot keep the first without the second. This book prints the trade rather than the survivor because the trade is the honest part: the deletion check was never load-bearing, it was a lucky side effect of a design that had to go.
+
+What survives is narrower and still worth running, because it is the mechanism rather than the history.
+
+\begin{Correspondence}{Retraction adds rows; it does not remove them}{Run the worked example above on your own instance and compare \texttt{count(*)} on \texttt{r} against \texttt{count(*)} on \texttt{r\_active}.}
+The two counts measure different things and are supposed to disagree. \texttt{r} is what happened. \texttt{r\_active} is what still counts. Every retraction widens the gap between them by making \texttt{r} larger, never by making it smaller, and a re-confirmation narrows it the same way. If retraction were a delete, the gap could not exist at all: there would be one number.
+\begin{Check}
+-- on a freshly booted instance, before you type anything
+SELECT count(*) FROM o;          -- 10: nine rule rows and the big-bang row
+SELECT count(*) FROM r;          -- 0
+SELECT count(*) FROM r_active;   -- 0
+
+-- after the worked example above
+SELECT count(*) FROM o;          -- 13: two samples and one blob ref added
+SELECT count(*) FROM r;          -- 3
+SELECT count(*) FROM r_active;   -- 1
+
+-- after the re-confirmation
+SELECT count(*) FROM r;          -- 4, never 3, and never 2
+SELECT count(*) FROM r_active;   -- 2
+\end{Check}
+\end{Correspondence}
+
+\begin{Open}{Nothing inside the database can now show you that nothing was deleted}{Settled by comparing an instance against an independent copy of itself, which requires the sync channels; those do not exist, so today there is no check at all.}
+The integer-density argument is not available any more and nothing replaced it. UUIDs carry no evidence of their neighbours' absence: a deleted row leaves a hole exactly as wide as no hole. Note what would actually settle this. Two copies of one instance, diffed, would expose a unilateral deletion immediately, and that is the natural check for an append-only store, because append-only is precisely the property that makes two copies comparable. It needs the merge machinery from Chapter 16, which is unimplemented and untested. Until then, ``nothing was deleted'' is a claim about the schema having no \texttt{DELETE} in it and about the people with the password, and you should hold it at that strength and no higher.
+\end{Open}
+
+The retraction ledger is the other half, and it is the number to take to a group meeting once you have a few months of data:
+
+\begin{verbatim}
+SELECT d->>'verdict', count(*) FROM r
+ WHERE d->>'type' = 'outcome' GROUP BY 1;
+\end{verbatim}
+
+On your instance tonight that returns one retraction and one confirmation, which is not interesting. Run it after a year of \labRun{}s and it will be. A mature instance of this substrate carries a large fraction of its own assertions in the retracted pile, all of them still in the table, which is why they can be counted at all. That is not a system with a retraction feature. That is a system whose normal operating condition is being substantially wrong and knowing it. Chapter 19 puts real numbers on this, and it has to take them from the instance that was archived on 17 July 2026, because that is the only one that ever ran long enough to have any.
+
+\section{The one operation that removes history}
+
+Everything above is true within a universe. On 17 July 2026 a universe ended, and the honest thing is to say so here, in the chapter that makes the strongest claim in the book, rather than to leave it somewhere it can be missed.
+
+The author's instance held 178,561 objects and 256,619 relations, plus 601,094 archived messages in a schema beside them. It now holds ten objects and no relations at all. It was wiped and booted again from the stem cell. Its identity is the uuidv7 of its own birth event, \texttt{019f6e4d-adb0-7c46-9d4b-ce4fbe666174}, and the row recording that birth is the tenth of the ten.
+
+Note first what this does to the defect this book has been carrying. A rule row, \texttt{shared-mailbox-v1}, had been inserted twice by an ingestion that ran twice, and sat in the objects table as two byte-identical rows. Earlier drafts of this chapter said flatly that it could not be fixed, because nothing is ever deleted, and that this was the design working as specified rather than an embarrassment. That was correct and it is still correct. The duplicate was never repaired. It is gone because the universe containing it is gone, and it took 178,561 objects with it.
+
+So state the bound exactly, because there is a cheap version of this argument and it is wrong. The cheap version says the rule had an escape hatch all along. It did not. A big bang is not a deletion within the system; it is a different system. Nothing reached into the objects table and removed a row. An empty database was booted, given a new origin, and given a new identity, and the old one was not destroyed either: it is a 1.18 GB file at \texttt{backups/ydb/ydb-pre-bigbang-2026-07-17.dump}, frozen, restorable, and no longer running. Both sentences hold at once. Nothing is ever deleted, of every universe. That says nothing whatsoever about how many universes there are.
+
+And say the cost plainly, because the cost is the reason this is not a technique. The fix for one duplicated row was to lose everything: every email, every paper, every witness, every retraction, the entire calibration corpus this book keeps arguing is the only training data anybody will ever get. That was acceptable for exactly two reasons. Jeremy judged that none of it was worth keeping in the form it was in, and the sources it was derived from all still exist outside the database, so anything worth having can be re-derived. Neither reason survives contact with a lab. A \labRun{} is not re-derivable. The sample \labSampleLoss{}.
+
+\begin{Open}{A big bang is cheap once and expensive immediately afterward}{Settled by nothing, because it is a judgement about the value of a corpus rather than a claim about the schema; the only honest statement is when it was affordable and why.}
+There is no mechanism here to design and no rule row to write. There is a window, at birth, when an instance holds nothing that is not reconstructible, and inside that window starting over costs an afternoon. The window closes the first time you record something the world will not hand you a second time. After that the operation still exists, still works, and is no longer a repair; it is an amputation you have chosen to call a fix. If you find yourself reaching for it to clean up a duplicate row, you have almost certainly mistaken which side of the window you are on.
+\end{Open}
+
+The design decision underneath this is Jeremy's, and it is worth quoting because it is not a concession: ``you dont need to start at t=-inf. you can define the moment of the big bang.'' Chapter 3 owns the epoch and the physics; the piece that belongs here is that an origin is a choice, and choosing one is the only sanctioned way to be rid of a history. It is the counterpart to the retraction law, not an exception to it. Retraction changes what a claim means without touching the record. A big bang changes which record you are reading. Neither one edits a row, and that is the invariant both of them keep.
+
+\section{Why: because retractions are the training data}
+
+There are two arguments in the founding document for why nothing is deleted, and only one of them survives contact.
+
+The first is at line 49: ``nothing is overwritten, because morphisms in time are not invertible.'' Ignore this. It is backwards. Append-only storage is a decision somebody made; the fact that you cannot run time backwards did not force it, and plenty of databases run on the same planet and overwrite happily. The document states the consequence as though it were the cause.
+
+The second is at line 58, and it is the real one: ``Everything is retractable by default, because \textbf{retractions are the training data}.''
+
+That sentence earns the whole design. Think about what a retraction actually is. It is a labeled example. Somebody, or some later process, asserted a thing with a confidence attached, and the world subsequently disagreed. That is precisely the object you need if you ever want to answer the question this system is built around: how much should a claim of \emph{this kind}, from \emph{this source}, actually be believed? Suppose a script that reads your \labFabLog{} writes a \texttt{same} witness at confidence 0.9 saying that the label on the \labSampleCarrier{} and the label in the \labGrowthLog{} denote one sample, and it is wrong. You cannot learn that 0.9 was too generous unless you kept the cases where it failed. Note what \texttt{component()} does with that: a wrong \texttt{same} witness at 0.9 silently welds two samples into one entity, and every query that asks for ``the \labMeasurement{} of \labSample{}'' quietly returns a mixture. Retract the witness and the two come apart again, and the failure stays on the record where the calibration fit can find it.
+
+Delete the wrong rows and you have a tidy database that can never tell you how often it is wrong. Keep them and the wrongness is measurable. That is the trade, and it is why the mislabeled \labRun{} is not garbage. Your forty \labFileFormat{} files tagged to the wrong sample are a record of a specific failure mode (\labSampleCarrier{}s are indistinguishable at 2am), with a timestamp, and if that failure recurs the database is the only place that will ever notice the pattern.
+
+This is also, thirteen days early, the entire content of a rule that would not be written until 2026-07-16. \texttt{divergence-is-data-v1} forbids any write path from forcing agreement between two authors, on the grounds that the disagreement is the thing you are trying to measure. The founding document already contained the reason, in five words, on 2026-07-03, and did not notice what it implied about write paths. Chapter 15 owns that argument. What belongs here is the observation that the justification for never deleting is empirical, not aesthetic. It is not purity. It is that the errors are the only calibration data anybody is ever going to get, and they are free, and they arrive whether you want them or not.
+
+It is also, read against the previous section, the sharpest argument available about when a big bang is defensible. The calibration corpus is the asset. Ending a universe throws it away. That is affordable only when there is not one yet.
+
+\section{Two things this does not cover}
+
+Both of these are real holes. Neither is hidden elsewhere in the book, so they are stated here plainly and cashed in later.
+
+\subsection*{Rules cannot be retracted}
+
+Everything above concerns the relations table, \texttt{r}. The outcome mechanism reads \texttt{r}, points into \texttt{r}, and is filtered by a view over \texttt{r}. Rules do not live in \texttt{r}. They live in \texttt{o}, the objects table, as ordinary rows with \texttt{"type":"rule"}. Look at yours:
+
+\begin{verbatim}
+SELECT i, j->>'name', j->>'status' FROM o WHERE j->>'type'='rule' ORDER BY i;
+\end{verbatim}
+
+Nine rows. Three carry a \texttt{status} at all, and two of those three tell you outright that they are provisional: the consensus law is \texttt{seed-prior}, and \texttt{staleness-decay-v1} is \texttt{proposed, not yet fit}. The third, \texttt{universal-epoch-v1}, says \texttt{declared convention, exact by fiat}, which is not a hedge but a different kind of statement altogether, and Chapter 3 is where it is unpacked. The two provisional ones will be wrong in a way that someone eventually measures. And there is no mechanism for retracting an \texttt{o} row. None. The one thing in this system that cannot be withdrawn by the system's own withdrawal law is the law itself, and everything like it.
+
+What happens instead is a convention, visible in the naming. A rule that turns out to be wrong is not withdrawn; a new rule row is written, and it carries a string field:
+
+\begin{verbatim}
+"supersedes": "staleness-decay-v1"
+\end{verbatim}
+
+That is a name, in a string, naming a rule. It is not a pointer, nothing enforces it, and no query consults it. Worse, and this is the part that makes it a genuine defect rather than a stylistic wart: nothing prevents a name from denoting more than one row. Rule rows are ordinary inserts into \texttt{o}, so running the bootstrap twice, or pasting a rule you meant to edit, leaves two byte-identical rows with the same \texttt{name} and different \texttt{i}. Nothing checks and nothing complains, and the supersession string no longer picks out a unique thing to supersede.
+
+This is not hypothetical, and the way it stopped being visible is instructive. It happened on the author's instance, to \texttt{shared-mailbox-v1}, and you will not find it there now, because that instance had a big bang and the duplicate went with it. The hole in the mechanism is untouched. Boot two copies of the bootstrap into one database this evening and you will have the defect back before midnight. An instance that no longer exhibits a defect because its history was replaced has not had the defect fixed; it has been given a shorter history in which to have exhibited it. Keep that distinction close, because the wipe makes several of this book's defects invisible on a fresh instance and exactly none of them are repaired by it.
+
+\begin{Open}{Rules are the one thing the retraction law cannot retract}{Settled by building a retraction mechanism for \texttt{o} rows at all, or by deciding on the record that rules are exempt and saying why.}
+Today neither has happened. Supersession is an unenforced string field pointing at a name the database does not promise is unique, and the demonstration of that non-uniqueness is now only available in an archived dump. Chapter 9 owns the tower; Chapter 10 prints the rule texts.
+\end{Open}
+
+\subsection*{The identity that outcomes point at is not unique}
+
+Look at the outcome row again: it carries \texttt{"of":<uuid>}, and \texttt{r\_active} casts that to a \texttt{UUID} and compares it to \texttt{r.i}. Everything rests on \texttt{r.i} naming exactly one row.
+
+It is not declared to. In the objects table, \texttt{i} is a \texttt{PRIMARY KEY}. In the relations table it is not, and it cannot be, for a reason that has nothing to do with anybody's design taste: \texttt{r} is a TimescaleDB hypertable partitioned on \texttt{t}, and TimescaleDB requires any unique constraint to include the partitioning column. \texttt{ALTER TABLE r ADD CONSTRAINT r\_i\_uniq UNIQUE (i)} is rejected outright with \texttt{cannot create a unique index without the column "t" (used in partitioning)}. So \texttt{r.i} carries \texttt{NOT NULL} and an ordinary, non-unique index, and there is no foreign key from an outcome's \texttt{of} back to anything.
+
+The whole retraction mechanism therefore rests on an unenforced reference into a column the database does not promise is unique. This is not a worry; it is a demonstration. Insert two \texttt{r} rows sharing an \texttt{i}, which the database accepts without complaint, point one outcome at that \texttt{i}, and watch \texttt{r\_active} go from two rows to zero. One retraction, two claims withdrawn, no error, no warning. You would get a quiet, correct-looking query result with a row missing from it.
+
+\begin{Open}{The retraction target is a non-unique, unenforced column}{Settled by exhibiting a uniqueness mechanism compatible with hypertable partitioning, or by accepting the exposure and running a periodic audit for duplicate \texttt{r.i} values.}
+Neither exists today. Note that the 2026-07-17 identity change does not help here and was never meant to: uuidv7 makes accidental collision between honest writers vanishingly unlikely, which is a probabilistic argument about writers, not a constraint on the table. A caller who supplies \texttt{i} explicitly still gets in. Content-hashing the identity, which Chapter 11 discusses as the fix for a different identity defect, does not help either, because the partitioning constraint is unaffected by how the value is computed.
+\begin{Check}
+-- two rows, one identity; the database does not object
+INSERT INTO r (i, o1, o2, d)
+SELECT i, o1, o2, d FROM r WHERE d->>'type' = 'measured' LIMIT 1;
+SELECT i, count(*) FROM r GROUP BY 1 HAVING count(*) > 1;   -- one row, count 2
+
+-- one outcome, pointed at that shared identity
+SELECT count(*) FROM r_active WHERE i = '<the duplicated uuid>';   -- 2
+SELECT retract('<the duplicated uuid>', 'one outcome, two rows');
+SELECT count(*) FROM r_active WHERE i = '<the duplicated uuid>';   -- 0
+\end{Check}
+\end{Open}
+
+\section{What to do at 2am}
+
+Write the outcome row. Put a reason in it, in English, because in four years you will be the person reading it and you will not remember the \labSampleCarrier{}s. Do not go looking for a \texttt{DELETE}; there isn't one, and the absence is deliberate. Do not go looking for the other thing either. Your instance is past the window, and it went past it the first time \labColdSystemColloquial{} \labColdOnset{}.
+
+Then go to bed, and leave the forty files where they are. They are labeled wrong and they are also, now, a small permanent piece of evidence about how often a tired person at 2am mixes up two samples whose names differ by one digit. That is worth more than a clean table.

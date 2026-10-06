@@ -1,0 +1,105 @@
+% tiers.sty: epistemic status marking for the Yoneda compendium.
+%
+% The rule: EVERY non-obvious claim in this book carries a tier. A reader must
+% never have to guess whether a sentence is a theorem someone proved, a
+% structural mapping we checked, an analogy we find useful, or an open question.
+% This is what separates a reference from a manifesto. Unmarked assertion of an
+% analogy as a result is the failure mode this file exists to prevent.
+%
+% AUTHORS, READ THIS:
+% The second argument of every environment is the JUSTIFICATION, and it is
+% mandatory on purpose. Keep it to ONE SHORT SENTENCE. It is a pointer, not a
+% procedure.
+%   Good: "Run the four-line check in this section against an empty instance."
+%   Bad:  a multi-statement SQL transcript with expected outputs inline.
+% Long verification recipes belong in the BODY, inside \begin{Check} (below),
+% which is a real code block that breaks and wraps properly. Code crammed into
+% the argument cannot hyphenate, so it overruns the margin.
+
+\ProvidesPackage{tiers}
+\RequirePackage{ifthen}    % MUST precede \tier, which expands \ifthenelse
+\RequirePackage{xcolor}
+\RequirePackage{amsthm}
+\RequirePackage{mdframed}
+\RequirePackage{listings}
+\RequirePackage{hyperref}
+
+\definecolor{tierthm}{HTML}{1B5E20}   % green:  proved
+\definecolor{tiercorr}{HTML}{0D47A1}  % blue:   structural, checkable
+\definecolor{tieranal}{HTML}{E65100}  % orange: suggestive only
+\definecolor{tieropen}{HTML}{6A1B9A}  % purple: unsettled
+
+% Inline tier badge: \tier{thm}, \tier{corr}, \tier{anal}, \tier{open}
+\newcommand{\tier}[1]{%
+  \ifthenelse{\equal{#1}{thm}}{\textcolor{tierthm}{\textsc{[theorem]}}}{%
+  \ifthenelse{\equal{#1}{corr}}{\textcolor{tiercorr}{\textsc{[correspondence]}}}{%
+  \ifthenelse{\equal{#1}{anal}}{\textcolor{tieranal}{\textsc{[analogy]}}}{%
+  \ifthenelse{\equal{#1}{open}}{\textcolor{tieropen}{\textsc{[open]}}}{%
+  \textcolor{red}{\textsc{[UNTIERED]}}}}}}}
+
+\newmdenv[linecolor=tierthm,linewidth=2pt,topline=false,bottomline=false,
+          rightline=false,skipabove=10pt,skipbelow=10pt,leftmargin=0pt,
+          innerleftmargin=9pt,innertopmargin=6pt,innerbottommargin=6pt]{tierthmbox}
+\newmdenv[linecolor=tiercorr,linewidth=2pt,topline=false,bottomline=false,
+          rightline=false,skipabove=10pt,skipbelow=10pt,leftmargin=0pt,
+          innerleftmargin=9pt,innertopmargin=6pt,innerbottommargin=6pt]{tiercorrbox}
+\newmdenv[linecolor=tieranal,linewidth=2pt,topline=false,bottomline=false,
+          rightline=false,skipabove=10pt,skipbelow=10pt,leftmargin=0pt,
+          innerleftmargin=9pt,innertopmargin=6pt,innerbottommargin=6pt]{tieranalbox}
+\newmdenv[linecolor=tieropen,linewidth=2pt,topline=false,bottomline=false,
+          rightline=false,skipabove=10pt,skipbelow=10pt,leftmargin=0pt,
+          innerleftmargin=9pt,innertopmargin=6pt,innerbottommargin=6pt]{tieropenbox}
+
+% Shared header renderer. The justification goes on its OWN line, small, ragged
+% right, and \sloppy, so a stray \texttt cannot push into the margin. \raggedright
+% is what actually prevents the overrun: with no need to justify the line, TeX
+% will not stretch an unbreakable code run past the measure.
+\newcommand{\tier@head}[4]{%
+  \noindent\tier{#1}\ \textbf{#2}\par
+  \nopagebreak\vspace{2pt}%
+  {\small\itshape\raggedright\sloppy #3: #4\par}%
+  \nopagebreak\vspace{4pt}%
+}
+
+% \begin{Theorem}{name}{citation}
+\newenvironment{Theorem}[2]
+  {\begin{tierthmbox}\tier@head{thm}{#1}{Proved}{#2}}
+  {\end{tierthmbox}}
+
+% \begin{Correspondence}{name}{one-sentence pointer to the check}
+\newenvironment{Correspondence}[2]
+  {\begin{tiercorrbox}\tier@head{corr}{#1}{Checkable by}{#2}}
+  {\end{tiercorrbox}}
+
+% \begin{Analogy}{name}{where it breaks}
+% The second argument is MANDATORY and must be substantive. An analogy whose
+% breaking point we cannot state is one we do not understand well enough to print.
+\newenvironment{Analogy}[2]
+  {\begin{tieranalbox}\tier@head{anal}{#1}{Breaks down}{#2}}
+  {\end{tieranalbox}}
+
+% \begin{Open}{name}{how it would be settled}
+\newenvironment{Open}[2]
+  {\begin{tieropenbox}\tier@head{open}{#1}{Would be settled by}{#2}}
+  {\end{tieropenbox}}
+
+% \begin{Check} ... \end{Check}
+% Where verification recipes go. A real listing: it breaks lines, keeps spaces,
+% and never overruns. Use this instead of packing SQL into a tier argument.
+% amsmath defines \Check (a math accent nobody in this book uses), which makes
+% \lstnewenvironment{Check} abort with "Environment `Check' already defined" and
+% leaves every \begin{Check} in the book broken. Clear it first. Order matters:
+% amsmath must be loaded before tiers.sty, which it is in compendium.tex.
+\makeatletter
+\let\Check\@undefined
+\let\endCheck\@undefined
+\makeatother
+\lstnewenvironment{Check}[1][]
+  {\lstset{basicstyle=\ttfamily\footnotesize, breaklines=true,
+           breakatwhitespace=false, columns=fullflexible, keepspaces=true,
+           frame=none, xleftmargin=4pt, showstringspaces=false,
+           postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}\space}, #1}}
+  {}
+
+% \rulerow{name}: reference a rule row that lives in the database.
+\newcommand{\rulerow}[1]{\textsf{\textbf{#1}}}

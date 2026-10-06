@@ -1,0 +1,301 @@
+\chapter{Entities Are Assembled, Not Stored}
+
+There is no row in this database that is your sample.
+
+Go and look. Search \texttt{o} for the label, for the growth date, for anything, and you will find observations: a line from the fabrication log, an AFM scan, a wire-bonding note, an entry in a cooldown record. What you will not find is the row that is the sample. There is no \texttt{samples} table. There is no \texttt{samples} view with one line per chip. There is no primary key you can hand to someone and say, that number is LAO-STO-0417B, use it.
+
+This is not an omission. It is the design, and it is the point of this chapter. A sample is not stored; a sample is \emph{assembled}, on demand, out of the evidence that two observations are about the same thing. So is a device. So is a cooldown. So is a person, which is where this machinery was first exercised and which is Chapter 19's problem, not yours. If you understand this chapter you understand why this database is shaped the way it is, and if you do not, everything else will look like a mistake.
+
+\section{Build the example}
+
+Everything below runs against the instance you booted five minutes ago, which has two tables, three views, and ten objects in it and nothing else. Nine of those objects are rules and the tenth is the record of the instance's own big bang, the moment it was brought to life; \texttt{r} is empty. Nothing here is quoted from anyone else's database, and there is no other database it could be quoted from: the machinery below is exercised on rows you insert into an instance that has existed for about five minutes and knows nothing. Insert this and you have the same rows the rest of the chapter talks about.
+
+One growth, in April. Two AFM scans, one right after growth and one after bonding. A wire-bonding note. A cooldown in July. Five observations, made by different hands at different times, and every one of them calls the sample something slightly different, because that is what actually happens.
+
+\begin{lstlisting}
+INSERT INTO o (j) VALUES
+ ('{"kind":"observation","source":"fab-log","sample":"LAO-STO-0417B",
+    "note":"3 uc LAO on TiO2-terminated STO, 800 C","date":"2026-04-17"}'),
+ ('{"kind":"observation","source":"asylum-afm","label":"0417B_terrace_01",
+    "date":"2026-04-17"}'),
+ ('{"kind":"observation","source":"bond-log","chip":"417B-2",
+    "note":"8 bonds, van der Pauw corners","date":"2026-07-10"}'),
+ ('{"kind":"observation","source":"asylum-afm","label":"417B-2_postbond",
+    "date":"2026-07-11"}'),
+ ('{"kind":"observation","source":"leiden-cooldown","socket":"3",
+    "label":"LAO/STO 4/17 B","date":"2026-07-14"}');
+\end{lstlisting}
+
+Five rows, no sample among them. Now the claims that tie them together.
+
+\section{The witness}
+
+Everything rests on one kind of row. A \emph{witness} is a relation in \texttt{r} that says: these two observations are about the same thing. It carries a confidence \texttt{c} between 0 and 1, and it names the evidence, so that later you can ask how well that kind of evidence has held up.
+
+\begin{lstlisting}
+INSERT INTO r (o1, o2, d, c) VALUES
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+  (SELECT i FROM o WHERE j->>'label'  = '0417B_terrace_01'),
+  '{"type":"same","evidence":"label-contains-growth-id"}', 0.95),
+
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+  (SELECT i FROM o WHERE j->>'chip'   = '417B-2'),
+  '{"type":"same","evidence":"chip-label-is-growth-id-plus-piece"}', 0.85),
+
+ ((SELECT i FROM o WHERE j->>'chip'   = '417B-2'),
+  (SELECT i FROM o WHERE j->>'label'  = '417B-2_postbond'),
+  '{"type":"same","evidence":"chip-label-exact"}', 0.85),
+
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+  (SELECT i FROM o WHERE j->>'label'  = '417B-2_postbond'),
+  '{"type":"same","evidence":"label-contains-growth-id"}', 0.85),
+
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+  (SELECT i FROM o WHERE j->>'label'  = 'LAO/STO 4/17 B'),
+  '{"type":"same","evidence":"human-label-plus-date"}', 0.60);
+\end{lstlisting}
+
+Read what each one says out loud, because the numbers are the whole identity layer. The first says: this scan's filename contains the growth identifier, written by the person who did the growth on the day of the growth, and I am 95\% sure that means one sample. The second and fourth say: this chip label is the growth identifier plus a piece index, so it is a piece of that growth, and I am 85\% sure that is the same thing for the purposes of the question being asked. The third says: two records carry exactly the same chip label. The last says: someone typed a label into a cooldown log by hand and the date lines up, and that is worth 0.60 and not more.
+
+That is it. No canonical record, no merge button, no golden record, no master data management. Just claims, each with a number attached, each retractable by the mechanism of Chapter 4.
+
+\begin{Correspondence}{Nothing is a sample}{With all ten rows inserted, count the sample rows in \texttt{o} on your own instance.}
+Your database now knows a great deal about LAO-STO-0417B and contains no row that is LAO-STO-0417B. It contains observations of a sample, and it contains claims that two observations are about the same sample. Everything a query returns about the sample is computed from those claims at the moment you ask. Try any variant of the query you like; \texttt{o} holds observations, rule rows, and the instance's birth record, and that is all it will ever hold about this chip.
+\begin{Check}
+SELECT count(*) FROM o WHERE j->>'kind' = 'sample';   -- 0
+SELECT DISTINCT j->>'kind', j->>'type' FROM o;        -- observation, big-bang, rule. Nothing else.
+\end{Check}
+\end{Correspondence}
+
+\section{The assembly}
+
+Given the witnesses, a sample is what you get by following them. Start at a label. Walk every active \texttt{same} edge whose confidence is at least some cut. Collect everything you reach. That set is the sample.
+
+This is a connected component of a graph, and it is ten lines of SQL. It is already in your instance:
+
+\begin{lstlisting}
+CREATE OR REPLACE FUNCTION component(seed_key TEXT, seed_val TEXT,
+                                     min_c REAL DEFAULT 0.9)
+RETURNS TABLE (o_id UUID) LANGUAGE sql STABLE AS $$
+WITH RECURSIVE comp AS (
+  SELECT i AS o_id FROM o WHERE j->>seed_key = seed_val
+  UNION
+  SELECT CASE WHEN a.o1 = c.o_id THEN a.o2 ELSE a.o1 END
+  FROM r_active a JOIN comp c ON c.o_id IN (a.o1, a.o2)
+  WHERE a.d->>'type' = 'same' AND a.c >= min_c
+) SELECT o_id FROM comp
+$$;
+\end{lstlisting}
+
+Read it once and you have the system. The first \texttt{SELECT} is the seed: find the objects whose \texttt{seed\_key} field holds the value you asked about. The second is the walk: for anything already in the set, find an active \texttt{same} witness touching it that is confident enough, and add the thing on the other end. \texttt{UNION} dedups, so the recursion stops when nothing new arrives. Note the third line from the bottom: it reads \texttt{r\_active}, not \texttt{r}. Retracted witnesses do not merge samples. That is Chapter 4 doing its job, and this is where it pays.
+
+\begin{lstlisting}
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');
+\end{lstlisting}
+
+Two consequences follow immediately, and they are the whole operational story.
+
+\begin{Correspondence}{Merge is an insert; split is a retraction}{Merge an outsider in with one row, retract that row, and watch the count go out and come back on your own instance.}
+To say that two records are the same sample, you add a row. To say you were wrong, you add an outcome row retracting it. You never edit anything and you never merge anything, in the sense that word usually has in a database, where merging means choosing one record to survive and destroying the other. Here the observations are untouched by both operations. Only the claims about them move.
+\begin{Check}
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');   -- 2
+INSERT INTO r (o1, o2, d, c) VALUES
+  ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+   (SELECT i FROM o WHERE j->>'socket' = '3'),
+   '{"type":"same","evidence":"test-only, not a real claim"}', 0.95)
+RETURNING i;
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');   -- 3, the outsider joined
+SELECT retract(<i>, 'test merge, never a real claim');
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');   -- 2, back where it started
+\end{Check}
+\end{Correspondence}
+
+\section{Three things nobody wrote down}
+
+The design document says, flatly, that an entity is a connected component. The code says something more interesting, and better, in three ways. Two of the three are in the system's favor. One is a landmine.
+
+\subsection{A sample is not a set. It is a family.}
+
+Look at the function signature again: \texttt{component(seed\_key, seed\_val, min\_c)}. There is a threshold in there. The design document has no threshold; it says an entity \emph{is} a connected component, full stop. But you cannot run that. You can only run \texttt{component('sample', 'LAO-STO-0417B', 0.9)}, or \texttt{0.85}, or \texttt{0.5}, and you get different answers.
+
+Here is your sample, from the rows you just inserted, at six different cuts:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+\texttt{min\_c} & objects in component \\
+\midrule
+0.99 & 1 \\
+0.90 & 2 \\
+0.85 & 4 \\
+0.80 & 4 \\
+0.60 & 5 \\
+0.50 & 5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{Correspondence}{"The" sample is not defined without naming a cut}{Every row of the table above is one count on your own instance, at a different cut.}
+Lowering the cut only ever adds members, never removes them, because lowering it only ever admits more edges.
+\begin{Check}
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.99);   -- 1
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.90);   -- 2
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- 4
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.80);   -- 4, no new edges admitted
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.60);   -- 5
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.50);   -- 5
+\end{Check}
+Ask what LAO-STO-0417B is and the honest answer is a question: at what confidence? At 0.99 it is the fabrication log entry and nothing else, because nothing else about it is known that surely. At 0.9 it is the growth and the scan taken the same day. At 0.85 the bonded chip joins. At 0.6 the cooldown joins, on the strength of a label somebody typed by hand. The system does not have a sample; it has a one-parameter family of samples, nested inside each other, and the sequence of thresholds at which two clumps join is real information about how strongly the evidence binds them. That is strictly more than the design document promises, and nobody wrote it down.
+\end{Correspondence}
+
+There is a second finding sitting underneath the first, and it is less flattering. Look at where the steps are. Nothing changes between 0.99 and 0.9, or between 0.85 and 0.8, or between 0.6 and 0.5. The staircase has treads, not a continuum, because the confidences are not measured. Five witnesses carry three distinct numbers between them: 0.95, 0.85, 0.60. They came from a small menu, and the menu is the set of decisions you made while typing the inserts.
+
+\begin{Correspondence}{The threshold family is quantized because the priors are}{Group your \texttt{same} witnesses by confidence and evidence type and count the distinct confidences: three, for five witnesses.}
+The distinct values of \texttt{c} are exactly the distinct decisions somebody made, which is why the staircase has treads.
+\begin{Check}
+SELECT c, d->>'evidence', count(*)
+  FROM r_active
+ WHERE d @> '{"type":"same"}'
+ GROUP BY 1, 2
+ ORDER BY 1;      -- 5 rows, 3 distinct c. Note label-contains-growth-id
+                  -- appears twice, at 0.95 AND at 0.85.
+\end{Check}
+Where did 0.85 come from for a chip label? It was assigned, not measured. And look at what the grouping catches, because it is worse than quantization and it is in your own five rows: \texttt{label-contains-growth-id} appears twice, once at 0.95 and once at 0.85. Two witnesses, the same declared evidence type, two different numbers. There is a defensible story available, that the postbond filename is a weaker instance of the type because a piece index sits between the growth id and the rest of the name, but nobody wrote that story down, and nothing in the database distinguishes the two rows except the number itself. If the confidence were a property of the evidence type it would be the same both times. It is not, so it is not. It is a property of the mood of the person typing, and the evidence label is a comment.
+
+The design document promises that confidence per evidence type is calibrated rather than assigned; today, in your instance and in every instance, it is assigned, and, as the grouping shows, not even assigned consistently. Chapter 17 is about what it would take to fix that. For now, note only that the sample-family is quantized because the priors are, and the quantization is an artifact of the priors rather than a fact about samples.
+\end{Correspondence}
+
+\subsection{Merge and split are not symmetric}
+
+The design document says merge is adding a witness and split is retracting one, as though these were opposites. They are not.
+
+Adding one bad witness merges two components, always, unconditionally. One row joining a label of yours to a label of mine, and from then on every query about either sample returns both.
+
+Retracting one good witness splits a component only if that witness was the sole connection, the only bridge across. Look at your own graph: \texttt{417B-2\_postbond} is tied in twice, once through the chip label and once directly to the fabrication log, because its filename carries both. Retract either one and re-run \texttt{component()} at 0.85. The count does not move. There is another path.
+
+\begin{Correspondence}{One bad witness merges; one good retraction usually does not un-merge}{Retract a good witness and the count holds; add one bad witness and it jumps. Both on your own instance.}
+This asymmetry is the practical reason to be stingy with witnesses and generous with retractions. It costs one row to ruin an identity and it can cost many to repair it, because you have to find and retract every path, not just the one you noticed. The retraction machinery is honest but it is not an undo button.
+\begin{Check}
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- 4
+SELECT retract((SELECT i FROM r WHERE d->>'evidence' = 'chip-label-exact'), 'test');
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- still 4, the other path holds
+-- now the other direction: one bad edge to an unrelated growth
+INSERT INTO o (j) VALUES
+  ('{"kind":"observation","source":"fab-log","sample":"LAO-STO-9999Z"}');
+INSERT INTO r (o1, o2, d, c) VALUES
+  ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+   (SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-9999Z'),
+   '{"type":"same","evidence":"test-only, not a real claim"}', 0.90)
+RETURNING i;
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B', 0.85);   -- jumps immediately
+SELECT retract(<i>, 'test merge, never a real claim');             -- put the instance back
+\end{Check}
+\end{Correspondence}
+
+\subsection{The seed is exact string equality, and that is a landmine}
+
+Look at the seed line one more time:
+
+\begin{lstlisting}
+SELECT i AS o_id FROM o WHERE j->>seed_key = seed_val
+\end{lstlisting}
+
+No normalization of any kind. \texttt{'LAO-STO-0417B'} and \texttt{'lao-sto-0417b'} and \texttt{'LAO-STO-0417B '} with a trailing space are three different seeds, and two of them will find nothing. That is a deliberate choice and not an oversight: what counts as the same string is domain knowledge. Email addresses are case-insensitive, sample labels are whatever your group has agreed they are, and a serial number stamped on a chassis is whatever the vendor stamped. So the substrate does not normalize, and each lineage supplies its own rule.
+
+\begin{Correspondence}{The seed match is exact and it will bite you}{Insert an observation whose label differs only in case, then seed on the original: it is not found, and nothing errors.}
+\begin{Check}
+INSERT INTO o (j) VALUES
+  ('{"kind":"observation","source":"fab-log","sample":"lao-sto-0417b"}');
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');   -- unchanged, the new row is invisible
+SELECT count(*) FROM component('sample', 'lao-sto-0417b');   -- 1, a separate component entirely
+\end{Check}
+This is worth stating precisely rather than dramatically. The day a second path writes a label the way somebody typed it, those objects vanish from every component silently, and nothing complains. The bug is a landmine, not a wound. Note also what the correctness of your queries depends on: not the function, but a convention in a loader. Write the convention down as a rule row before you write the loader, per the house rule that lessons become rows.
+\end{Correspondence}
+
+\begin{Open}{Is a chip the same thing as a growth?}{Take two pieces from one growth, bond them, cool them separately, and ask your database for "the sample." Then ask a person. Where the two answers differ is the specification for whatever relation is missing.}
+Your \texttt{0.85} witness between the growth and the chip is hiding a real problem in a number. Two chips from one growth are the same sample for some questions, terrace quality and interface chemistry, and different samples for others, contact resistance and every transport number you will publish. The \texttt{same} relation cannot express that distinction at all. It is one relation with a confidence, and what you actually mean is same-with-respect-to-a-property. Assigning 0.85 is not a measurement of anything; it is the average of "yes" and "no" to a question nobody asked precisely. Nothing about fixing this is hard. Nobody has done it.
+\end{Open}
+
+\section{What it costs: one shared label swallows a growth}
+
+None of this is theoretical, and the bill arrives early. Here is the failure, on your own instance, in six rows.
+
+The AFM saves with a default label when nobody types one. Your third scan of 0417B went out as \texttt{Image0001}, and you tied it to the growth by hand because you knew what you had scanned. Someone else's scan, of an unrelated growth in May, also went out as \texttt{Image0001}. And your loader has a rule, which is a perfectly good rule: exact label match means same sample, confidence 0.95.
+
+\begin{lstlisting}
+INSERT INTO o (j) VALUES
+ ('{"kind":"observation","source":"asylum-afm","label":"Image0001",
+    "date":"2026-07-11","operator":"student-a"}'),
+ ('{"kind":"observation","source":"asylum-afm","label":"Image0001",
+    "date":"2026-05-02","operator":"student-b"}'),
+ ('{"kind":"observation","source":"fab-log","sample":"LAO-STO-0502A",
+    "note":"unrelated growth","date":"2026-05-02"}');
+
+INSERT INTO r (o1, o2, d, c) VALUES
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0417B'),
+  (SELECT i FROM o WHERE j->>'operator' = 'student-a'),
+  '{"type":"same","evidence":"operator-assertion"}', 0.90),
+ ((SELECT i FROM o WHERE j->>'sample' = 'LAO-STO-0502A'),
+  (SELECT i FROM o WHERE j->>'operator' = 'student-b'),
+  '{"type":"same","evidence":"label-contains-growth-id"}', 0.95),
+ ((SELECT i FROM o WHERE j->>'operator' = 'student-a'),
+  (SELECT i FROM o WHERE j->>'operator' = 'student-b'),
+  '{"type":"same","evidence":"label-exact"}', 0.95);
+\end{lstlisting}
+
+Now count the component again. It was 2. It is 5, and two of the new members belong to a growth from a different month. Seed on the May growth instead and your April fabrication log comes back as part of a May sample. The two growths are now one sample, and every question you ask about either returns both.
+
+\begin{Check}
+SELECT count(*) FROM component('sample', 'LAO-STO-0417B');   -- 5, was 2
+SELECT count(*) FROM component('sample', 'LAO-STO-0502A');   -- the same 5 objects
+\end{Check}
+
+Label equality, which is the strongest evidence type you have, is worthless on a label that is not a sample identifier. Nothing in the design noticed the difference, and nothing could have. Every row is well-formed. No constraint was violated. The graph just connected.
+
+The fix is not a code change. It is a retraction plus a rule row.
+
+\begin{lstlisting}
+SELECT retract((SELECT i FROM r WHERE d->>'evidence' = 'label-exact'),
+               'Image0001 is the Asylum default label, not a sample id');
+
+INSERT INTO o (j) VALUES (
+  '{"type":"rule","level":2,"name":"placeholder-label-v1",
+    "trigger":"component(sample,LAO-STO-0417B) swallowed LAO-STO-0502A via
+               two scans both saved under the AFM default label Image0001",
+    "definition":"a label that the acquisition software supplies by default,
+                  or that recurs across growths with no shared provenance, is
+                  not identity evidence. Label equality on such a label mints
+                  no same witness."}');
+\end{lstlisting}
+
+Re-run the count and it is 3. Not 5, and not the 2 you started with. The retraction evicted exactly the two objects that never belonged, student-b's scan and the May growth behind it, and left student-a's scan attached, because the operator's own assertion about her own scan is a separate witness, it sits at 0.90, and it was right all along. That is what a good repair looks like: the bad evidence type goes and the good evidence stays, and you can see which is which. Every retracted witness is still readable in \texttt{r}, because nothing is ever deleted. That is the shape of every real repair in this system: an outcome row, and a rule row that says what you learned, so that the next person can query the reasoning instead of rediscovering it.
+
+The lesson is the cost of the design, and it is worth being blunt about it. When identity is emergent, one miscalibrated evidence type does not produce a small error. It produces a superentity, and the failure scales with how much data you have: what swallows one growth in a database of eight rows swallows thousands of objects in a mature one. The mature version of exactly this failure happened on the email lineage, where a single shared mailbox carrying hundreds of display names fused most of a corpus into one nonexistent person, and it is Chapter 19. The mechanism is identical and the blast radius is not. Read that chapter as history rather than as a tour: the instance it happened in was wiped and reborn on 2026-07-17 and now survives only as a dump on disk. The failure is no less real for that. Your instance is young, which means it is small, which is the only reason your version of this fits in one page.
+
+\section{Is a component a sample?}
+
+One honest caveat before Part I lets go of you.
+
+\begin{Analogy}{A component is a sample}{Breaks in three places, all of them live: a component is records rather than oxide, it depends on a cut you chose, and one bad evidence type collapses it.}
+First, a component is a set of \emph{observation records}, and a sample is a piece of oxide in a box. The component is at best a handle on the sample, and the two go their separate ways the moment the evidence does.
+
+Second, the component depends on a cut, so ``the sample'' is not even a function of the data alone; it is a function of the data and a number you chose. At 0.6 your chip is 5 records and at 0.9 it is 2, and both answers come from the same database at the same instant.
+
+Third, and worst, the component is only as good as its evidence types, and one bad type does not degrade it gracefully. One default filename fused two growths and the database was perfectly happy about it.
+
+What survives is the operational part, which is what you actually need: a component is the best current guess about which records are about one thing, it is recomputed every time you ask, and it is revisable by adding or retracting one row.
+\end{Analogy}
+
+There is a fourth break that is worth knowing about because it constrains what you can do with a component, not just what it means. A component is a set of \texttt{o.i} values, and until recently \texttt{o.i} was a \texttt{BIGINT} identity column, which is to say a per-machine counter: your object 1 and your labmate's object 1 were different objects wearing the same name, so two instances could not be merged without silent collision. That is fixed. \texttt{o.i} and \texttt{r.i} are now \texttt{UUID}, defaulting to \texttt{uuidv7()}, and anything that is a function of its content gets \texttt{uuid\_from\_sha256()} instead, so two machines that ingest the same bytes mint the same id without talking to each other. The ids in your component are globally unique and they name the same objects wherever they land.
+
+Be careful about what that buys, because it is less than it sounds. The names no longer collide; that is all. There is no sync channel, no merge command, and no test of either, so merging two instances is not a thing you can do today, it is a thing that is no longer blocked. What did become possible is smaller and more concrete: an id you export means something outside your own container, which it did not before. The whitepaper called the counter the one thing standing between a single machine and painless local copies, and the counter is gone. Whether the copies are painless is unmeasured, because nobody has made two and tried.
+
+The identity of the instance itself works the same way, and it is worth seeing once, because it is the design applied to the design. There is no instance-id column and no config file holding a machine name. An instance is identified by its big bang: the birth object's own \texttt{o.i}, a \texttt{uuidv7} minted at boot, unique across every machine that ever boots without any of them coordinating. \texttt{SELECT instance\_id()} does not read a setting; it reads the birth event. The instance is not stored either. It is assembled from what was witnessed, which in this case is one thing, once.
+
+And a note for the record, since the word will come back. Calling this a connected component is graph theory, and calling it by its categorical name, which Chapter 13 does, adds a name and not a fact. Nothing in this chapter was proved. The identification of an entity with a component is a \emph{definition}, chosen because it makes merges reversible, not a theorem anyone derived. Whether it is a good definition is an empirical question about how often the assembled component matches what a person says, and the answer to that question has never been measured on any lineage.
+
+\begin{Open}{Which cut is the sample?}{Measure precision and recall of \texttt{component()} against hand-resolved components, as a function of \texttt{min\_c}.}
+Hold out a set of components resolved by hand, without the resolver's help. The cut that maximizes agreement is the answer, and the shape of the curve is the calibration the design document has promised since day one; Chapter 17 explains why it has not been done and why it is the cheapest available win in the whole system.
+
+The default is \texttt{min\_c REAL DEFAULT 0.9}. That number is in the function signature because someone chose it. It is not wrong. It is unmeasured, which is a different thing, and the difference is the subject of the rest of this book. Your lab has an advantage here that the email lineage does not: you know the ground truth, because you made the samples. A hundred labeled pairs from your own fabrication logs would settle for instrument data what three years of correspondence never settled for people.
+\end{Open}

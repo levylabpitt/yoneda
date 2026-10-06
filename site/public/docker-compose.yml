@@ -1,0 +1,39 @@
+# Yoneda stem cell: a fresh, empty instance on any machine with Docker.
+#
+# This is NOT the Names instance and does NOT restore Jeremy's database. You get
+# an empty substrate that initializes itself on first boot and that you fill
+# with your own data.
+#
+#   docker compose up -d
+#
+# On an EMPTY volume the image runs everything in /docker-entrypoint-initdb.d
+# in filename order, so 10-cell.sql. On a volume
+# that already has data it runs nothing, so `up -d` is safe to repeat.
+#
+# To start over from scratch (destroys YOUR data, not anyone else's):
+#   docker compose down -v && docker compose up -d
+
+services:
+  ydb:
+    image: timescale/timescaledb-ha:pg17
+    # One instance PER INSTRUMENT. On a PC hosting two instruments, give each
+    # its own folder, name, and port: YDB_NAME=yoneda-cypher YDB_PORT=5435.
+    container_name: ${YDB_NAME:-yoneda}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${YDB_PORT:-5434}:5432"      # localhost only, never 0.0.0.0
+    environment:
+      POSTGRES_DB: yoneda
+      POSTGRES_PASSWORD: ${YDB_PASSWORD:-yoneda-local-dev}
+    volumes:
+      - ydb_data:/home/postgres/pgdata/data
+      - ./cell.pg.sql:/docker-entrypoint-initdb.d/10-cell.sql:ro
+      - ./blobs:/blobs                          # content-addressed store, see BOOT.md
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d yoneda"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ydb_data:
