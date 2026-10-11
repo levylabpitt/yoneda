@@ -18,7 +18,7 @@ trigger, and an `active` view where the latest outcome wins.
 # --- the one place the schema is stated -------------------------------------
 # (name, sqlite type, postgres type, comment)
 COLUMNS = [
-    ("i",  "TEXT PRIMARY KEY", "uuid PRIMARY KEY",
+    ("i",  "TEXT PRIMARY KEY", "text PRIMARY KEY",
      "identity: content-hash (immutable cells) OR uuidv7 (authored cells)"),
     ("j",  "TEXT NOT NULL", "jsonb NOT NULL",
      "payload JSON: {kind, faces:{role -> cell id}, data:{...}}"),

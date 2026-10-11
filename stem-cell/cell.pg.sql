@@ -55,7 +55,7 @@
 CREATE SCHEMA IF NOT EXISTS cell;
 
 CREATE TABLE IF NOT EXISTS cell.cell(
-  i   uuid PRIMARY KEY,  -- identity: content-hash (immutable cells) OR uuidv7 (authored cells)
+  i   text PRIMARY KEY,  -- identity: content-hash (immutable cells) OR uuidv7 (authored cells)
   j   jsonb NOT NULL,    -- payload JSON: {kind, faces:{role -> cell id}, data:{...}}
   b   text,              -- authoring big-bang id (NULL => content-addressed / definitional)
   t   double precision,  -- event time, unix seconds (NULL => content-addressed)
