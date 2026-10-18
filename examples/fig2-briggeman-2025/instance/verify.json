@@ -1,0 +1,81 @@
+{
+  "part1_all_recomputations_match": true,
+  "cells": 1901,
+  "edges": 4013,
+  "retracted_cells": 2,
+  "questions": [],
+  "checks": [
+    {
+      "value": 1.001152322704473,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": 1470.1497065185342,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": 0.9983015303123067,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": 0.9983015303123067,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": 0.9998385425828209,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": 17980.66423277875,
+      "test": "median of G(claimed wiring) / R4t(instrument)"
+    },
+    {
+      "value": -0.1145,
+      "test": "mu of the lowest-subband onset (G = 0.5 e^2/h) at the sweep nearest B = 0, after jump removal; the paper defines this as mu = 0"
+    },
+    {
+      "value": -0.0219,
+      "test": "mu of the lowest-subband onset (G = 0.5 e^2/h) at the sweep nearest B = 0, after jump removal; the paper defines this as mu = 0"
+    }
+  ],
+  "figure_rerendered_hash_matches": true,
+  "figure_witnesses": [
+    "2A:claim",
+    "2A:data",
+    "2A:lever-arm",
+    "2B:claim",
+    "2B:data",
+    "2B:lever-arm",
+    "2C:claim",
+    "2C:data",
+    "2C:lever-arm",
+    "2D:claim",
+    "2D:data",
+    "2D:lever-arm",
+    "paper"
+  ],
+  "part2": {
+    "17B": {
+      "published_curves": 112,
+      "raw_sweeps": 114,
+      "published_curve_k_is_raw_sweep": "k+1 (17B), reversed (16A); see README",
+      "uniform_vsg_shift_mV_median": 1.5,
+      "rms_e2h_median_absB_gt_4T": 0.0485,
+      "rms_e2h_median_all": 0.0701,
+      "map_correlation_all_fields": 0.659,
+      "map_correlation_absB_gt_3T": 0.985,
+      "map_amplitude_ratio_published_over_ours_absB_gt_3T": 1.055
+    },
+    "16A": {
+      "published_curves": 120,
+      "raw_sweeps": 123,
+      "published_curve_k_is_raw_sweep": "k+1 (17B), reversed (16A); see README",
+      "uniform_vsg_shift_mV_median": 0.75,
+      "rms_e2h_median_absB_gt_4T": 0.0563,
+      "rms_e2h_median_all": 0.0916,
+      "map_correlation_all_fields": 0.003,
+      "map_correlation_absB_gt_3T": 0.892,
+      "map_amplitude_ratio_published_over_ours_absB_gt_3T": 1.232
+    }
+  }
+}
